@@ -6,7 +6,13 @@
   <title>TemanMIS App</title>
 
   <script>
-    document.write('<base href="' + document.location.pathname + '" />');
+    var path = window.location.pathname;
+    // Jika di localhost (ada kata /presensi_webapp/), ambil sampai folder tersebut.
+    // Jika di production (subdomain presensi.sdmis.sch.id), gunakan '/'
+    var base = path.indexOf('/presensi_webapp/') !== -1 
+        ? path.substring(0, path.indexOf('/presensi_webapp/') + 17) 
+        : '/';
+    document.write('<base href="' + base + '" />');
   </script>
 
   <meta name="color-scheme" content="light dark">
