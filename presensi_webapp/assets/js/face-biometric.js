@@ -236,32 +236,55 @@
   // 7. UI: Update Home Card and FAB
   function getOrInjectHomeCard() {
     let card = document.getElementById('face-id-home-card');
-    if (card) return card;
 
-    const homeContent = document.querySelector('app-home ion-content') || 
-                        document.querySelector('ion-router-outlet ion-content') || 
-                        document.querySelector('ion-content');
-    if (!homeContent) return null;
-
-    card = document.createElement('div');
-    card.id = 'face-id-home-card';
-    card.className = 'face-id-home-card';
-    card.style.display = 'none';
-
-    const target = homeContent.querySelector('ion-grid') || 
-                   homeContent.querySelector('.bg-putih') || 
-                   homeContent.firstElementChild;
-    if (target && target.parentNode) {
-      target.parentNode.insertBefore(card, target);
-    } else {
-      homeContent.appendChild(card);
+    const home = document.querySelector('app-home');
+    if (!home) {
+      if (card) card.style.display = 'none';
+      return null;
     }
+
+    const contentCard = home.querySelector('.content-card');
+    if (!contentCard) {
+      if (card) card.style.display = 'none';
+      return null;
+    }
+
+    if (!card) {
+      card = document.createElement('div');
+      card.id = 'face-id-home-card';
+      card.className = 'face-id-home-card';
+      card.style.display = 'none';
+    }
+
+    // Ensure card is strictly placed as the first child of .content-card so it pushes down alerts/buttons naturally
+    if (card.parentElement !== contentCard || card !== contentCard.firstElementChild) {
+      contentCard.insertBefore(card, contentCard.firstElementChild);
+    }
+
     return card;
   }
 
   function updateUIStatus(statusData) {
     const fab = document.getElementById('face-id-fab');
     if (fab) {
+      // Manage floating button visibility: Only display on /menu/home or scanner
+      // On /menu/request, /menu/history, and /menu/profile, keep screens clean and unobscured
+      const path = window.location.pathname;
+      const hash = window.location.hash;
+      const isNonHome = path.includes('/request') || hash.includes('/request') ||
+                        path.includes('/history') || hash.includes('/history') ||
+                        path.includes('/profile') || hash.includes('/profile');
+      
+      const activeAppRequest = document.querySelector('app-request:not(.ion-page-hidden)');
+      const activeAppHistory = document.querySelector('app-history:not(.ion-page-hidden)');
+      const activeAppProfile = document.querySelector('app-profile:not(.ion-page-hidden)');
+
+      if (isNonHome || activeAppRequest || activeAppHistory || activeAppProfile) {
+        fab.style.display = 'none';
+      } else {
+        fab.style.display = 'flex';
+      }
+
       fab.classList.remove('verified', 'unregistered');
       if (statusData && statusData.is_verified) {
         fab.classList.add('verified');
@@ -275,31 +298,74 @@
       if (!statusData || !statusData.is_registered) {
         homeCard.className = 'face-id-home-card danger';
         homeCard.innerHTML = `
-          <div class="card-text">
-            <h4>📸 Pendaftaran Wajah Diperlukan</h4>
-            <p>Silakan scan biometrik wajah 5 sudut untuk mengaktifkan fitur absensi.</p>
+          <div class="face-card-left">
+            <div class="face-card-icon danger">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                <circle cx="12" cy="13" r="4"></circle>
+              </svg>
+            </div>
+            <div class="face-card-info">
+              <div class="face-card-title-row">
+                <span class="face-card-title">Perekaman Wajah Diperlukan</span>
+                <span class="face-card-badge danger">Wajib</span>
+              </div>
+              <div class="face-card-subtitle">Scan biometrik 5 sudut untuk mengaktifkan fitur absensi</div>
+            </div>
           </div>
-          <button class="btn-scan-face" onclick="window.FaceBiometric.openScanner()">Scan Wajah</button>
+          <button class="face-card-btn danger" onclick="window.FaceBiometric.openScanner()">
+            <span>Daftar Sekarang ➔</span>
+          </button>
         `;
         homeCard.style.display = 'flex';
       } else if (statusData && !statusData.is_verified) {
         homeCard.className = 'face-id-home-card warning';
         homeCard.innerHTML = `
-          <div class="card-text">
-            <h4>⏳ Menunggu Verifikasi Admin</h4>
-            <p>Data wajah Anda telah terkirim dan sedang menunggu persetujuan admin portal SDMIS.</p>
+          <div class="face-card-left">
+            <div class="face-card-icon warning">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+              </svg>
+            </div>
+            <div class="face-card-info">
+              <div class="face-card-title-row">
+                <span class="face-card-title">Menunggu Verifikasi Admin</span>
+                <span class="face-card-badge warning">Pending</span>
+              </div>
+              <div class="face-card-subtitle">Wajah berhasil direkam, menunggu persetujuan HRD portal</div>
+            </div>
           </div>
-          <button class="btn-scan-face" style="background:#d97706;" onclick="window.FaceBiometric.openScanner()">Scan Ulang</button>
+          <button class="face-card-btn warning" onclick="window.FaceBiometric.openScanner()">
+            <span>Scan Ulang</span>
+          </button>
         `;
         homeCard.style.display = 'flex';
       } else if (statusData && statusData.is_verified) {
         homeCard.className = 'face-id-home-card success';
         homeCard.innerHTML = `
-          <div class="card-text">
-            <h4>✅ Face ID Terverifikasi</h4>
-            <p>Biometrik wajah Anda aktif. Anda dapat melakukan absensi dengan kamera.</p>
+          <div class="face-card-left">
+            <div class="face-card-icon success">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                <polyline points="9 12 11 14 15 10"></polyline>
+              </svg>
+            </div>
+            <div class="face-card-info">
+              <div class="face-card-title-row">
+                <span class="face-card-title">Face ID Aktif</span>
+                <span class="face-card-badge success">Terverifikasi</span>
+              </div>
+              <div class="face-card-subtitle">Presensi siap dengan deteksi wajah otomatis</div>
+            </div>
           </div>
-          <button class="btn-scan-face" style="background:#16a34a;" onclick="window.FaceBiometric.openScanner()">Detail</button>
+          <button class="face-card-btn success" onclick="window.FaceBiometric.openScanner()">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+              <circle cx="12" cy="13" r="4"></circle>
+            </svg>
+            <span>Uji Face ID</span>
+          </button>
         `;
         homeCard.style.display = 'flex';
       }
@@ -1007,6 +1073,53 @@
     }, 380);
   }
 
+  // 15b. Empty State Helper for Request Izin
+  function checkAndRenderRequestEmptyState() {
+    const appRequest = document.querySelector('app-request:not(.ion-page-hidden)');
+    if (!appRequest) {
+      const existing = document.getElementById('request-empty-state-card');
+      if (existing) existing.style.display = 'none';
+      return;
+    }
+
+    const reqContent = appRequest.querySelector('ion-content');
+    if (!reqContent) return;
+
+    // Check if there are ion-items (requests) or if skeleton loading is active
+    const hasItems = appRequest.querySelector('ion-item');
+    const isLoading = appRequest.querySelector('ion-skeleton-text');
+
+    let emptyBox = document.getElementById('request-empty-state-card');
+
+    if (!hasItems && !isLoading) {
+      if (!emptyBox) {
+        emptyBox = document.createElement('div');
+        emptyBox.id = 'request-empty-state-card';
+        emptyBox.className = 'request-empty-state-card';
+        emptyBox.innerHTML = `
+          <div class="empty-state-icon">
+            <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="#64748b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+          </div>
+          <h4>Belum Ada Pengajuan Izin</h4>
+          <p>Daftar riwayat izin kerja atau dinas Anda akan tampil di sini.</p>
+          <div class="empty-state-hint">
+            <span>💡 Tap tombol <b>(+)</b> di pojok kanan bawah untuk mengajukan izin baru</span>
+          </div>
+        `;
+        reqContent.appendChild(emptyBox);
+      }
+      emptyBox.style.display = 'flex';
+    } else {
+      if (emptyBox) emptyBox.style.display = 'none';
+    }
+  }
+
   // 16. Auto-Initialize
   async function init() {
     injectElements();
@@ -1020,6 +1133,7 @@
     // Periodically re-check login, refresh UI, and monitor camera presence
     setInterval(async () => {
       checkAndAttachLiveAttendanceWatcher();
+      checkAndRenderRequestEmptyState();
 
       if (!state.currentUser) {
         const u = await getCurrentUser();

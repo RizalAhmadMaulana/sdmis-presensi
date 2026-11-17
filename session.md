@@ -785,3 +785,202 @@ Silakan ikuti langkah-langkah di bawah ini untuk mencoba sendiri di browser Anda
 ---
 
 Semua sistem telah terintegrasi secara mulus, aman, dinamis, dan siap digunakan! 🚀
+
+---
+
+## 🎨 Update Tampilan: Perapian Halaman Home & Widget Face ID Terverifikasi
+
+### A. Latar Belakang Masalah
+Pada pengujian tampilan beranda `http://localhost/mis_dev/sdmis/presensi_webapp/menu/home`, ditemukan ketidakrapian tata letak (layout overlap):
+1. Banner status Face ID (`#face-id-home-card`) sebelumnya diinjeksikan ke dalam container `.fly-card` (kartu tanggal & status yang berposisi `fixed: 115px`). Hal ini menyebabkan widget Face ID menabrak dan menutupi separuh bagian atas tombol **"Absen Masuk"** dan **"Absen Pulang"**.
+2. Tampilan kartu Face ID sebelumnya berukuran terlalu tebal, menggunakan tombol kotak statis standar, serta margin samping tidak simetris dengan container kartu presensi bawaan TemanMIS (`.content-card`).
+
+---
+
+### B. Rincian Perbaikan & Desain Ulang
+
+#### 1. Perbaikan Alur DOM (DOM Flow Fix)
+- Target penempatan kartu diubah dari `.fly-card` menjadi **elemen pertama di dalam `.content-card`** (`contentCard.firstElementChild`).
+- Container `.content-card` pada TemanMIS memiliki padding-top bawaan 215px (berada persis di bawah floating card tanggal). Dengan menempatkannya di dalam `.content-card`, kartu Face ID otomatis mengikuti alur natural dokumen (in-flow block) dan mendorong kartu tombol absensi ke bawah tanpa saling tumpang tindih sama sekali.
+
+#### 2. Redesain Modern Widget Face ID (3 Status)
+- **Status Terverifikasi (Success)**:
+  - Latar belakang gradien lembut emerald mint (`#f0fdf4` ke `#ffffff`) dengan border halus `#bbf7d0`.
+  - Ikon perisai centang (*shield checkmark*) SVG beresolusi tajam dalam lingkaran beraksen hijau.
+  - Teks: **Face ID Aktif** dengan badge pill hijau `TERVERIFIKASI`, dan subteks *"Presensi siap dengan deteksi wajah otomatis"*.
+  - Tombol interaktif berbentuk pill: **"Uji Face ID"** lengkap dengan ikon kamera untuk memudahkan guru menguji atau mengecek biometrik kapan saja.
+- **Status Belum Rekam (Danger)**:
+  - Latar gradien rose (`#fff1f2`), ikon kamera peringatan, teks **Perekaman Wajah Diperlukan**, badge `WAJIB`, serta tombol glowing pulse *"Daftar Sekarang ➔"*.
+- **Status Menunggu Verifikasi (Warning)**:
+  - Latar gradien amber gold (`#fffbeb`), ikon jam pasir, teks **Menunggu Verifikasi Admin**, badge `PENDING`, dan tombol *"Scan Ulang"*.
+
+#### 3. Penyelarasan Responsif Mobile & Desktop
+- Menambahkan aturan `@media (max-width: 480px)` agar ukuran font, ikon, dan padding tombol otomatis mengecil secara proporsional di layar ponsel kecil.
+- Lebar kartu diatur `width: 100%; box-sizing: border-box; margin: 0 0 14px 0;` sehingga sejajar sempurna (*pixel-perfect alignment*) dengan batas tepi kiri-kanan kartu tanggal dan kartu tombol absensi.
+
+---
+
+### C. Daftar File yang Diperbarui
+
+| No | File | Perubahan |
+|---|---|---|
+| 1 | `presensi_webapp/assets/js/face-biometric.js` | Memperbarui fungsi `getOrInjectHomeCard()` agar menyisipkan kartu ke `.content-card.firstElementChild` dan memperbarui render HTML widget modern |
+| 2 | `presensi_webapp/assets/css/face-biometric.css` | Menata ulang class `.face-id-home-card`, menambahkan sub-komponen `.face-card-left`, `.face-card-icon`, `.face-card-title`, `.face-card-badge`, `.face-card-btn`, serta media query mobile |
+| 3 | `sdmis/session.md` | Dokumentasi perbaikan tampilan beranda presensi TemanMIS |
+
+---
+
+### D. Verifikasi Mandiri oleh Pengguna
+1. Buka kembali halaman beranda: `http://localhost/mis_dev/sdmis/presensi_webapp/menu/home`
+2. Tekan **Ctrl + Shift + R** (atau Refresh) untuk membersihkan cache CSS/JS di browser.
+3. Periksa tampilan:
+   - Header biru salam *"Hai, Coba Rizal"* dan kartu tanggal berada rapi di atas.
+   - Di bawah kartu tanggal, muncul widget hijau rapi: **"🛡️ Face ID Aktif [TERVERIFIKASI]"** dengan tombol **"Uji Face ID"**.
+   - Tombol **"Absen Masuk"** dan **"Absen Pulang"** terlihat utuh 100% tanpa ada teks yang terpotong atau tertutup.
+
+---
+
+## 📌 Update Menu Request: Relokasi Tombol '+' ke Kanan Atas & Optimalisasi Tampilan
+
+### A. Latar Belakang Masalah
+Pada halaman menu pengajuan izin (`http://localhost/mis_dev/sdmis/presensi_webapp/menu/request`):
+1. Tombol tambah izin (`ion-fab` dengan ikon `+`) awalnya berada di pojok kanan bawah (`vertical="bottom" horizontal="end"`). Posisi ini tertimpa (*overlapping*) secara langsung oleh tombol floating **Face ID** yang juga berada di pojok kanan bawah layar.
+2. Ketika daftar izin masih kosong (belum ada pengajuan), tampilan halaman menjadi putih kosong (*blank screen*) tanpa petunjuk aksi bagi pengguna.
+
+---
+
+### B. Solusi & Perubahan yang Diterapkan
+
+#### 1. Relokasi Tombol '+' ke Kanan Atas (Header Toolbar)
+- Mengubah atribut native Angular Ionic di `8824.9cad71cdc53b27d0.js` dari `vertical="bottom"` menjadi `vertical="top"`.
+- Memberikan styling terdedikasi pada `presensi_webapp/assets/css/face-biometric.css` untuk `app-request ion-fab` dan `app-request ion-fab-button`:
+  - **Posisi**: `top: calc(8px + var(--ion-safe-area-top, 0px)); right: 14px; fixed; z-index: 99999;`
+  - **Desain**: Tombol putih melingkar (*White Elevated Action Button*) berukuran 40px dengan bayangan elegan dan ikon `+` berwarna biru royal (`#0054e9`), menyatu sempurna dengan header biru *"Request Izin"*.
+  - Mengikuti standar desain aplikasi mobile modern (iOS Navigation Bar / Material Design App Bar Action).
+
+#### 2. Visibilitas Pintar Tombol Floating Face ID
+- Pada `presensi_webapp/assets/js/face-biometric.js`, fungsi `updateUIStatus()` diperbarui dengan deteksi halaman aktif:
+  - Tombol floating Face ID hanya dimunculkan di halaman **Beranda (`/menu/home`)** tempat absensi berlangsung.
+  - Pada halaman **Request Izin (`/menu/request`)**, **Riwayat Kehadiran (`/menu/history`)**, dan **Profil (`/menu/profile`)**, tombol Face ID otomatis disembunyikan agar layar tetap bersih dan fokus pada konten masing-masing menu.
+
+#### 3. Penambahan Empty State Card (Saran Optimalisasi)
+- Ketika guru membuka menu Request Izin dan datanya masih kosong (array `[]`), sistem secara otomatis menampilkan ilustrasi kartu ramah (*friendly empty state*):
+  - Ikon dokumen catatan 📝
+  - Judul: **Belum Ada Pengajuan Izin**
+  - Subteks: *"Daftar riwayat izin kerja atau dinas Anda akan tampil di sini."*
+  - Petunjuk aksi: *"💡 Tap tombol (+) di kanan atas header untuk mengajukan izin baru"*.
+
+---
+
+### C. Daftar File yang Diperbarui
+
+| No | File | Perubahan |
+|---|---|---|
+| 1 | `presensi_webapp/8824.9cad71cdc53b27d0.js` | Mengubah atribut template `ion-fab` dari `vertical="bottom"` ke `vertical="top"` |
+| 2 | `presensi_webapp/assets/css/face-biometric.css` | Menambahkan styling tombol aksi `app-request ion-fab` di kanan atas header & styling komponen `.request-empty-state-card` |
+| 3 | `presensi_webapp/assets/js/face-biometric.js` | Menyesuaikan visibilitas smart FAB (hanya tampil di home) & menambahkan fungsi render empty state pada request izin |
+| 4 | `sdmis/session.md` | Dokumentasi sesi relokasi tombol '+' dan optimalisasi menu request |
+
+---
+
+### D. Panduan Verifikasi Mandiri oleh Pengguna
+1. Buka halaman menu Request Izin:  
+   **http://localhost/mis_dev/sdmis/presensi_webapp/menu/request**
+2. Tekan **Ctrl + Shift + R** (Hard Refresh).
+3. Anda akan melihat:
+   - Di bar atas biru (sebelah kanan judul *"Request Izin"*), terdapat tombol putih melingkar rapi dengan ikon **`+`**.
+   - Pojok kanan bawah kini bersih, tidak ada lagi tombol yang saling menutupi.
+   - Layar menampilkan ilustrasi panduan *Empty State* yang menjelaskan cara membuat izin baru.
+   - Klik tombol **`+`** di kanan atas untuk memastikan form tambah izin terbuka secara normal.
+
+---
+
+## 🔄 Update: Pengembalian Tombol '+' ke Posisi Semula (Bawah Kanan) & Panduan Lengkap Deploy Production Hostinger
+
+### A. Alasan Pengembalian Posisi
+Karena tombol floating **Face ID** telah diprogram otomatis tersembunyi (*smart hidden*) pada menu Request Izin (`/menu/request`), maka area pojok kanan bawah layar kini sepenuhnya bersih dan tidak ada tabrakan visual lagi. Oleh karena itu:
+- Tombol **`+`** dikembalikan ke posisi aslinya yaitu di **pojok kanan bawah** (`vertical="bottom" horizontal="end"`).
+- Pesan ilustrasi panduan *Empty State* tetap dipertahankan dengan redaksi: *"💡 Tap tombol (+) di pojok kanan bawah untuk mengajukan izin baru"*.
+
+---
+
+### B. Daftar File yang Diperbarui
+
+| No | File | Keterangan |
+|---|---|---|
+| 1 | `presensi_webapp/8824.9cad71cdc53b27d0.js` | Mengembalikan atribut `vertical="bottom"` pada `ion-fab` |
+| 2 | `presensi_webapp/assets/css/face-biometric.css` | Menghapus override header bar untuk `app-request ion-fab`, mengembalikan tombol floating FAB biru bawaan |
+| 3 | `presensi_webapp/assets/js/face-biometric.js` | Memperbarui teks panduan empty state mengarah ke tombol pojok kanan bawah |
+| 4 | `sdmis/session.md` | Dokumentasi pembaruan dan panduan deployment |
+
+---
+
+### C. Panduan Lengkap Push ke GitHub & Migrasi Production Hostinger
+
+Seluruh kode program di folder `sdmis/` dan `presensi_webapp/` telah dirancang **100% dinamis**, secara otomatis mendeteksi apakah aplikasi sedang berjalan di lingkungan lokal (`localhost` / IP LAN) atau lingkungan produksi live (`https://sdmis.sch.id` dan `https://presensi.sdmis.sch.id`).
+
+Berikut panduan langkah demi langkah yang dapat Anda jalankan sendiri di terminal:
+
+#### 1. Push dari Komputer Lokal ke GitHub
+
+Buka terminal **PowerShell** atau **Git Bash** di komputer Anda, lalu arahkan ke folder proyek:
+```bash
+# Masuk ke folder proyek
+cd "C:\xampp\htdocs\mis_dev\sdmis"
+
+# 1. Cek file-file yang telah dimodifikasi
+git status
+
+# 2. Tambahkan semua perubahan file ke staging git
+git add .
+
+# 3. Buat commit perubahan
+git commit -m "feat: complete face recognition system, dynamic multi-angle attendance, redesigned UI & request layout"
+
+# 4. Push ke GitHub repository
+git push origin main
+```
+*(Catatan: Jika branch utama Anda bernama `master`, gunakan `git push origin master`)*
+
+---
+
+#### 2. Pull Update di Server Hostinger
+
+Buka **SSH Terminal** cPanel Hostinger Anda (atau via Terminal di panel hPanel Hostinger):
+```bash
+# 1. Masuk ke direktori web utama
+cd public_html
+
+# 2. Tarik update terbaru dari repository GitHub
+git pull origin main
+```
+
+---
+
+#### 3. Eksekusi Migrasi Database Live Sekali Klik (Hostinger)
+
+Buka browser Anda dan akses URL migrasi produksi berikut:
+```
+https://sdmis.sch.id/migrate_face
+```
+*(Atau `https://sdmis.sch.id/index.php/migrate_face` jika rewrite URL belum aktif)*
+
+Skrip ini akan otomatis:
+1. Membaca konfigurasi database produksi Hostinger Anda (`u983578927_absensi`).
+2. Membuat tabel baru `m_pegawai_face` dengan pengecekan aman `IF NOT EXISTS` (tanpa menghapus data lama).
+3. Menambahkan kolom `is_face_registered` pada tabel `m_pegawai`.
+4. Menambahkan kolom `face_similarity_score` dan `face_status` pada tabel `tx_absensi`.
+5. Menyiapkan folder penyimpanan foto wajah sampel di `assets/uploaded/faces/`.
+6. Menampilkan laporan status hijau **"SUKSES SEMUA"** di layar browser Anda.
+
+---
+
+#### 4. Pengujian Fitur di Server Produksi Hostinger
+
+Setelah langkah 1, 2, dan 3 selesai:
+1. Buka web portal admin SDMIS:  
+   `https://sdmis.sch.id/karyawan/data`  
+   Periksa kolom baru **"FACE BIOMETRIK"** sudah tampil di tabel data karyawan.
+2. Buka web presensi guru:  
+   `https://presensi.sdmis.sch.id/`  
+   Login sebagai guru, dan sistem akan langsung aktif dengan pemindaian biometrik 5 sudut serta auto-capture kehadiran berbasis AI!
