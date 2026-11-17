@@ -618,7 +618,7 @@ Berikut adalah panduan langkah demi langkah yang dapat **Anda coba langsung send
 6. Klik tombol hijau **"Setujui Wajah"**.
 7. Status guru kini berubah menjadi hijau: **"Terverifikasi"**.
 
-##### Langkah 3: Melakukan Presensi Menggunakan Deteksi Wajah
+##### Langkah 3: Melakukan Presensi Menggunakan Deteksi Wajah (Auto-Capture Opsi 1)
 1. Kembali ke aplikasi presensi webapp (`presensi_webapp`).
 2. Masuk ke menu **Absen Masuk** atau **Absen Pulang**.
 3. Kamera akan aktif dan mengambil foto wajah Anda secara live.
@@ -631,3 +631,157 @@ Berikut adalah panduan langkah demi langkah yang dapat **Anda coba langsung send
 
 ---
 Semua sistem siap 100% dan teruji dengan sangat baik! 🚀
+
+
+
+---
+
+## 🎯 Tahap 5+ Update: Implementasi Opsi 1 (Live Auto-Capture & Integrasi Presensi Real-Time)
+
+### A. Latar Belakang & Kebutuhan Pengguna
+Berdasarkan hasil uji coba langsung (di mana wajah *Coba Rizal* terverifikasi 88% pada tool diagnostik `/test_biometric`), saat masuk ke halaman kamera absensi (`/camera/in`), guru menginginkan proses yang otomatis dan mulus:
+- **Wajah Terverifikasi**: Guru cukup mengarahkan wajah ke kamera, sistem menyinkronkan 1-2 detik, radar berubah hijau, muncul hitung mundur `2... 1... 📸`, dan kamera **otomatis menjepret sendiri (Auto-Capture)** tanpa harus klik tombol.
+- **Wajah Belum Terdaftar**: Kamera tidak bisa menjepret; muncul kartu peringatan interaktif dengan tombol untuk langsung rekam wajah 5 sudut.
+- **Wajah Masih Menunggu Persetujuan Admin**: Muncul kartu informasi bahwa foto biometrik sedang ditinjau oleh HRD sekolah.
+- **Wajah Orang Lain (Titip Absen)**: Radar berubah merah (*Mismatch*), tombol capture terkunci, dan sistem menolak absensi.
+- **Integrasi Jangkauan Lokasi**: Kondisi "Di Luar Jangkauan Lokasi" (radius GPS kantor) tetap berjalan normal sesuai sistem awal presensi TemanMIS yang menunggu persetujuan HRD.
+
+---
+
+### B. Arsitektur Teknis Auto-Capture & Live Watcher
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Guru as Guru (TemanMIS)
+    participant Cam as Kamera Live (Cordova)
+    participant AI as Face-API.js (Live Watcher)
+    participant Bridge as Bridge Biometrik
+    participant API as Backend SDMIS (CI3)
+    participant DB as MariaDB / MySQL
+
+    Guru->>Cam: Buka Absen Masuk (/camera/in)
+    Cam->>AI: Stream Video Aktif
+    AI->>Bridge: Ambil Deskriptor 5 Sudut Guru
+    Bridge->>API: POST /rest_post/face_get_descriptors
+    API-->>Bridge: 5 Vektor Float 128-d
+    loop Scan Setiap 380ms
+        AI->>AI: Deteksi Wajah & Hitung Euclidean Distance
+        alt Jarak <= 0.54 (Wajah Cocok)
+            AI->>Guru: Radar Hijau + Suara Beep + Countdown 2.. 1.. 📸
+        else Jarak > 0.54 (Wajah Orang Lain)
+            AI->>Guru: Radar Merah (Wajah Tidak Cocok) + Reset Count
+        end
+    end
+    Note over AI,Cam: Match Stabil 3 Frame (~1.2 detik)
+    AI->>Guru: Bunyi Shutter Jepret (High Chime)
+    AI->>Cam: Trigger captureBtn.click() Otomatis!
+    Cam-->>Guru: Foto Terambil & Pindah ke Layar Preview
+    Guru->>Bridge: Klik "Absen Sekarang"
+    Bridge->>API: POST /rest_post/attendance/ (Score & Status Terverifikasi)
+    API->>DB: INSERT tx_absensi (face_similarity_score, face_status)
+    API-->>Guru: Absen Berhasil Dicatat!
+```
+
+---
+
+### C. Daftar File yang Diperbarui pada Implementasi Opsi 1
+
+| No | File | Perubahan Utama |
+|---|---|---|
+| 1 | `sdmis/presensi_webapp/assets/css/face-biometric.css` | Menambahkan styling HUD Kamera Live: `.face-live-hud-overlay` (fixed fullscreen), `.face-live-radar-box` (oval responsif dengan status searching, matching, matched, mismatch), `.face-live-laser-line` (animasi laser sweep), `.face-live-countdown-text` (animasi zoom angka 2, 1, 📸), `.face-live-status-pill`, dan `.face-live-gate-card`. |
+| 2 | `sdmis/presensi_webapp/assets/js/face-biometric.js` | Menambahkan fungsi `checkAndAttachLiveAttendanceWatcher()` yang mendeteksi route `/camera/`, menyembunyikan tombol capture default, menyembunyikan floating FAB Face ID agar tidak mengganggu kamera, menjalankan loop deteksi 380ms terhadap 5 vektor terdaftar, memicu auto-click saat match stabil $\ge 3$ frame, serta meng-cache hasil verifikasi biometrik untuk langsung digunakan saat guru menekan "Absen Sekarang". |
+| 3 | `sdmis/presensi_webapp/1814.e3e9a1a87ba37b68.js` | Memastikan method `postAttendance()` membaca `window.FaceBiometric.verifyAttendance()` yang mengembalikan hasil validasi instan (0 ms wait karena sudah divalidasi saat auto-capture) dan menyertakan `face_similarity` serta `face_status` ke API server. |
+| 4 | `sdmis/session.md` | Dokumentasi lengkap sesi perubahan, arsitektur teknis, panduan pengujian lokal, dan tutorial deployment Hostinger. |
+
+---
+
+### D. Panduan Lengkap Update ke Production Hostinger (Git Push & Pull)
+
+Seluruh kode program telah dirancang **100% dinamis**, mendeteksi domain server secara otomatis melalui `window.location.hostname` pada frontend dan `$_SERVER['HTTP_HOST']` pada backend CodeIgniter 3. Anda **TIDAK PERLU** merubah satu baris pun file konfigurasi saat memindahkan ke server live Hostinger.
+
+Cukup lakukan 3 langkah berikut:
+
+#### 1. Di Komputer Lokal (Buka Terminal PowerShell / Git Bash di `C:\xampp\htdocs\mis_dev\sdmis`):
+```bash
+# 1. Periksa file yang telah diupdate
+git status
+
+# 2. Tambahkan semua file ke Git staging
+git add .
+
+# 3. Buat commit perubahan fitur face recognition Opsi 1
+git commit -m "feat: live auto-capture biometric face attendance with dynamic multi-angle verification"
+
+# 4. Push ke repository GitHub Anda
+git push origin main
+```
+*(Catatan: Jika branch utama Anda bernama `master`, gunakan `git push origin master`)*
+
+---
+
+#### 2. Di Server Hostinger (Melalui SSH Terminal cPanel Hostinger):
+```bash
+# 1. Masuk ke direktori web utama
+cd public_html
+
+# 2. Tarik update terbaru dari repository GitHub
+git pull origin main
+```
+
+---
+
+#### 3. Jalankan Migrasi Database Live Sekali Klik:
+Buka browser dan buka tautan berikut di tab baru:
+```
+https://sdmis.sch.id/migrate_face
+```
+- Skrip migrasi akan otomatis terhubung ke database Hostinger `u983578927_absensi`.
+- Membuat tabel `m_pegawai_face` secara otomatis.
+- Menambahkan kolom `is_face_registered` ke `m_pegawai`.
+- Menambahkan kolom `face_similarity_score` dan `face_status` ke tabel `tx_absensi`.
+- Menyiapkan folder foto wajah di `assets/uploaded/faces/`.
+- Setelah selesai, dashboard menampilkan status **"SUKSES SEMUA"** dan Anda siap menggunakan fitur Face ID secara live di Hostinger!
+
+---
+
+### E. Panduan Alur Pengujian Mandiri oleh Anda (Testing Lokal)
+
+Silakan ikuti langkah-langkah di bawah ini untuk mencoba sendiri di browser Anda:
+
+#### Skenario 1: Verifikasi Akun Guru Anda (*Coba Rizal*)
+1. Pastikan status wajah akun Anda sudah **"Terverifikasi"** (seperti yang telah Anda setujui sebelumnya di `http://localhost/mis_dev/sdmis/karyawan/data`).
+2. Buka aplikasi presensi di browser:
+   ```
+   http://localhost/mis_dev/sdmis/presensi_webapp/
+   ```
+3. Login sebagai guru / karyawan Anda (*Coba Rizal*).
+4. Klik tombol **"Absen Masuk"** atau **"Absen Pulang"**.
+5. Kamera akan menyala dan menampilkan **Radar Oval Biometrik**:
+   - Di bagian atas muncul status: *"🔍 Posisikan wajah di lingkaran..."*.
+   - Arahkan wajah Anda ke dalam oval.
+   - Radar langsung berubah **Hijau Menyala**, status bertuliskan: *"✅ Wajah Cocok (XX%) - Tahan Posisi..."*.
+   - Muncul hitungan mundur: **"2... 1... 📸"**.
+   - Bunyi shutter kamera terdengar, dan foto **otomatis terambil (Auto-Capture)**!
+6. Anda masuk ke layar konfirmasi:
+   - Terlihat foto wajah yang baru saja ter-capture secara jernih.
+   - Terlihat pesan status jangkauan GPS: *"Status diluar jangkauan, absen kamu akan menunggu persetujuan HRD..."* (sesuai SOP sekolah).
+   - Klik tombol **"Absen Sekarang"**.
+7. Muncul pesan sukses: *"Absen masuk berhasil pada jam XX:XX"*.
+8. Periksa database di phpMyAdmin (`db_absensi` $\to$ tabel `tx_absensi`):
+   - Baris absensi terbaru Anda mencatat `face_similarity_score` (misal: `0.88`) dan `face_status` bertuliskan `'verified'`!
+
+---
+
+#### Skenario 2: Uji Coba Keamanan Anti Titip Absen (Wajah Orang Lain)
+1. Buka kembali menu **Absen Masuk**.
+2. Minta orang lain (atau arahkan kamera ke foto wajah orang lain yang berbeda dari akun *Coba Rizal*).
+3. Hasil:
+   - Radar seketika berwarna **Merah** (*Mismatch*).
+   - Terdengar bunyi peringatan nada rendah.
+   - Status bertuliskan: *"⛔ Wajah Tidak Cocok (XX%)"*.
+   - Kamera **TIDAK AKAN** melakukan auto-capture, mengunci sistem dari kecurangan titip absen!
+
+---
+
+Semua sistem telah terintegrasi secara mulus, aman, dinamis, dan siap digunakan! 🚀

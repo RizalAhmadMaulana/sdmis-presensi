@@ -28,6 +28,7 @@
     biometricStatus: null, // { is_registered, is_verified, foto_sample }
     activeStream: null,
     currentStepIndex: 0,
+    lastAttendanceVerification: null,
     capturedData: {
       front: null,
       right: null,
@@ -661,6 +662,11 @@
       return { allowed: false, message: 'Foto absensi tidak ditemukan. Harap ambil foto terlebih dahulu.' };
     }
 
+    // 0. Gunakan hasil verifikasi sinkronisasi live jika baru diverifikasi (< 60 detik)
+    if (state.lastAttendanceVerification && (Date.now() - state.lastAttendanceVerification.timestamp) < 60000) {
+      return state.lastAttendanceVerification;
+    }
+
     showVerifyLoader('Memvalidasi biometrik wajah...');
 
     try {
@@ -764,6 +770,243 @@
     }
   }
 
+  // 15b. Real-Time Live Attendance Face Watcher & Auto-Capture (Opsi 1)
+  const liveWatcher = {
+    isActive: false,
+    intervalId: null,
+    consecutiveMatches: 0,
+    requiredMatches: 3, // ~1.2s - 1.5s match stabil
+    isCapturing: false,
+    cachedUserDescriptors: null,
+    targetPegawaiId: null
+  };
+
+  function stopLiveAttendanceWatcher() {
+    if (liveWatcher.intervalId) {
+      clearInterval(liveWatcher.intervalId);
+      liveWatcher.intervalId = null;
+    }
+    liveWatcher.isActive = false;
+    liveWatcher.isCapturing = false;
+    liveWatcher.consecutiveMatches = 0;
+    const hud = document.getElementById('face-live-hud');
+    if (hud) hud.remove();
+    const fab = document.getElementById('face-id-fab');
+    if (fab) fab.style.display = 'flex';
+  }
+
+  async function checkAndAttachLiveAttendanceWatcher() {
+    const href = window.location.href;
+    const isCameraRoute = href.includes('/camera/');
+
+    const captureParent = document.querySelector('.cordova-camera-capture');
+    const video = captureParent ? captureParent.querySelector('video') : document.querySelector('video');
+
+    if (!isCameraRoute || !captureParent || !video) {
+      if (liveWatcher.isActive && !captureParent) {
+        stopLiveAttendanceWatcher();
+      }
+      return;
+    }
+
+    // Sembunyikan floating button Face ID saat kamera absensi sedang aktif
+    const fab = document.getElementById('face-id-fab');
+    if (fab) fab.style.display = 'none';
+
+    if (liveWatcher.isActive) return;
+
+    liveWatcher.isActive = true;
+    liveWatcher.consecutiveMatches = 0;
+    liveWatcher.isCapturing = false;
+
+    // Sembunyikan tombol capture default agar otomatis terkontrol oleh AI
+    const captureBtn = captureParent.querySelector('button');
+    if (captureBtn) {
+      captureBtn.style.opacity = '0';
+      captureBtn.style.pointerEvents = 'none';
+      captureBtn.style.position = 'absolute';
+    }
+
+    video.style.borderRadius = '16px';
+
+    // Inject HUD Overlay ke dalam container video
+    let hud = document.getElementById('face-live-hud');
+    if (!hud) {
+      hud = document.createElement('div');
+      hud.id = 'face-live-hud';
+      hud.className = 'face-live-hud-overlay';
+      hud.innerHTML = `
+        <div id="face-live-pill" class="face-live-status-pill searching">
+          <span class="pill-dot"></span>
+          <span id="face-live-pill-text">🔍 Memuat Face Recognition...</span>
+        </div>
+        <div id="face-live-radar" class="face-live-radar-box searching">
+          <div class="face-live-laser-line"></div>
+          <div id="face-live-countdown" class="face-live-countdown-text" style="display:none;"></div>
+        </div>
+        <div class="face-live-status-pill" style="margin-bottom:15px; font-size:12px; opacity:0.85;">
+          <span>Posisikan wajah tepat di lingkaran untuk Auto-Capture</span>
+        </div>
+      `;
+      captureParent.appendChild(hud);
+    }
+
+    // Load AI models
+    await loadFaceModels();
+
+    // Dapatkan data pegawai yang login
+    const user = await getCurrentUser();
+    if (!user || !user.pegawai_id) {
+      liveWatcher.isActive = false;
+      return;
+    }
+
+    // Ambil deskriptor guru dari server
+    let descData = null;
+    try {
+      const res = await fetch(API_BASE + 'rest_post/face_get_descriptors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: user.pegawai_id })
+      });
+      descData = await res.json();
+    } catch (e) {
+      console.warn('Gagal memuat deskriptor guru:', e);
+    }
+
+    // Skenario 1: Belum Merekam Face ID
+    if (!descData || !descData.is_registered) {
+      hud.innerHTML = `
+        <div class="face-live-gate-card danger">
+          <div class="gate-icon">⚠️</div>
+          <h4>Belum Rekam Face ID</h4>
+          <p>Anda belum merekam data biometrik wajah. Silakan rekam wajah 5 sudut terlebih dahulu untuk dapat melakukan absensi.</p>
+          <button class="btn-gate-action" onclick="window.FaceBiometric.openScanner()">
+            📸 Rekam Wajah Sekarang
+          </button>
+          <button class="btn-gate-close" onclick="window.history.back()">Batal / Kembali</button>
+        </div>
+      `;
+      return;
+    }
+
+    // Skenario 2: Menunggu Verifikasi Admin
+    if (!descData.is_verified) {
+      hud.innerHTML = `
+        <div class="face-live-gate-card warning">
+          <div class="gate-icon">⏳</div>
+          <h4>Menunggu Verifikasi Admin</h4>
+          <p>Data biometrik wajah Anda telah tersimpan dan sedang menunggu persetujuan dari Admin / HRD SDMIS.</p>
+          <button class="btn-gate-action" style="background:#f59e0b;" onclick="window.history.back()">
+            Kembali ke Beranda
+          </button>
+        </div>
+      `;
+      return;
+    }
+
+    // Skenario 3: Siap Verifikasi Live Wajah
+    const registered = descData.result;
+    liveWatcher.cachedUserDescriptors = [
+      registered.descriptor_front,
+      registered.descriptor_right,
+      registered.descriptor_left,
+      registered.descriptor_up,
+      registered.descriptor_down
+    ].filter(Boolean);
+
+    const pill = document.getElementById('face-live-pill');
+    const pillText = document.getElementById('face-live-pill-text');
+    const radar = document.getElementById('face-live-radar');
+    const countdown = document.getElementById('face-live-countdown');
+
+    function updateHUD(type, msg) {
+      if (pill) pill.className = `face-live-status-pill ${type}`;
+      if (pillText) pillText.innerText = msg;
+      if (radar) radar.className = `face-live-radar-box ${type}`;
+    }
+
+    updateHUD('searching', '🔍 Posisikan wajah di lingkaran...');
+
+    // Live Detection & Auto-Capture Loop (Setiap 380ms)
+    liveWatcher.intervalId = setInterval(async () => {
+      if (!liveWatcher.isActive || liveWatcher.isCapturing) return;
+      if (!video || video.paused || video.ended || video.readyState < 2) return;
+
+      try {
+        const detection = await faceapi.detectSingleFace(
+          video,
+          new faceapi.TinyFaceDetectorOptions({ inputSize: 256, scoreThreshold: 0.5 })
+        ).withFaceLandmarks().withFaceDescriptor();
+
+        if (!detection) {
+          liveWatcher.consecutiveMatches = 0;
+          if (countdown) countdown.style.display = 'none';
+          updateHUD('searching', '🔍 Arahkan wajah ke lingkaran...');
+          return;
+        }
+
+        const inputDesc = detection.descriptor;
+        let minDistance = 999;
+        for (const targetDesc of liveWatcher.cachedUserDescriptors) {
+          const d = faceapi.euclideanDistance(inputDesc, targetDesc);
+          if (d < minDistance) minDistance = d;
+        }
+
+        const threshold = 0.54;
+        const similarity = Math.max(0.1, Math.min(0.99, 1 - (minDistance * 0.8)));
+        const simPercent = Math.round(similarity * 100);
+
+        if (minDistance > threshold) {
+          // MISMATCH (Bukan Guru Bersangkutan / Titip Absen)
+          liveWatcher.consecutiveMatches = 0;
+          if (countdown) countdown.style.display = 'none';
+          updateHUD('mismatch', `⛔ Wajah Tidak Cocok (${simPercent}%)`);
+          playTone(300, 0.1);
+        } else {
+          // MATCH! (Guru Terverifikasi)
+          liveWatcher.consecutiveMatches++;
+          updateHUD('matched', `✅ Wajah Cocok (${simPercent}%) - Tahan Posisi...`);
+
+          if (countdown) {
+            countdown.style.display = 'block';
+            const count = Math.max(1, 4 - liveWatcher.consecutiveMatches);
+            countdown.innerText = count <= 1 ? '📸' : count.toString();
+          }
+
+          playTone(880, 0.08); // Feedback sinkronisasi
+
+          if (liveWatcher.consecutiveMatches >= 3 && !liveWatcher.isCapturing) {
+            // MATCH STABIL 3 FRAME (~1.2s)! AUTO-CAPTURE TERPICU
+            liveWatcher.isCapturing = true;
+            playTone(1318, 0.25); // Nada shutter sukses
+
+            state.lastAttendanceVerification = {
+              allowed: true,
+              similarity: similarity.toFixed(2),
+              status: 'verified',
+              distance: minDistance.toFixed(3),
+              message: `Wajah terverifikasi cocok! (Akurasi: ${simPercent}%)`,
+              timestamp: Date.now()
+            };
+
+            // Trigger capture
+            if (captureBtn) {
+              captureBtn.click();
+            } else {
+              const anyBtn = captureParent.querySelector('button');
+              if (anyBtn) anyBtn.click();
+            }
+
+            stopLiveAttendanceWatcher();
+          }
+        }
+      } catch (err) {
+        console.warn('Face detection live loop error:', err);
+      }
+    }, 380);
+  }
+
   // 16. Auto-Initialize
   async function init() {
     injectElements();
@@ -774,18 +1017,21 @@
       fetchFaceStatus(user.pegawai_id);
     }
 
-    // Periodically re-check login and refresh UI if route changes
+    // Periodically re-check login, refresh UI, and monitor camera presence
     setInterval(async () => {
+      checkAndAttachLiveAttendanceWatcher();
+
       if (!state.currentUser) {
         const u = await getCurrentUser();
         if (u && u.pegawai_id) fetchFaceStatus(u.pegawai_id);
       } else if (state.biometricStatus) {
         updateUIStatus(state.biometricStatus);
       }
-    }, 3000);
+    }, 800);
 
     window.addEventListener('popstate', () => {
       if (state.biometricStatus) setTimeout(() => updateUIStatus(state.biometricStatus), 400);
+      setTimeout(checkAndAttachLiveAttendanceWatcher, 300);
     });
   }
 
@@ -804,7 +1050,9 @@
     verifyAttendance,
     fetchFaceStatus,
     getCurrentUser,
-    showToast
+    showToast,
+    checkAndAttachLiveAttendanceWatcher,
+    stopLiveAttendanceWatcher
   };
 
 })(window);

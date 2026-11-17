@@ -595,3 +595,257 @@
   }
 }
 
+/* ==========================================================================
+   Live Attendance Face Recognition HUD & Auto-Capture Scanner
+   ========================================================================== */
+
+.face-live-hud-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 16px;
+  box-sizing: border-box;
+  z-index: 2147483640;
+}
+
+/* Radar Oval Frame */
+.face-live-radar-box {
+  position: relative;
+  width: 220px;
+  height: 270px;
+  margin: auto;
+  border-radius: 50% 50% 45% 45% / 60% 60% 40% 40%;
+  border: 3px dashed rgba(255, 255, 255, 0.6);
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.face-live-radar-box.searching {
+  border-color: #38bdf8;
+  border-style: dashed;
+  box-shadow: 0 0 25px rgba(56, 189, 248, 0.4), 0 0 0 9999px rgba(0, 0, 0, 0.5);
+}
+
+.face-live-radar-box.matching {
+  border-color: #fbbf24;
+  border-style: solid;
+  box-shadow: 0 0 35px rgba(251, 191, 36, 0.5), 0 0 0 9999px rgba(0, 0, 0, 0.5);
+}
+
+.face-live-radar-box.matched {
+  border-color: #22c55e;
+  border-style: solid;
+  box-shadow: 0 0 45px rgba(34, 197, 94, 0.7), 0 0 0 9999px rgba(0, 0, 0, 0.5);
+  animation: matched-pulse 1s infinite alternate;
+}
+
+.face-live-radar-box.mismatch {
+  border-color: #ef4444;
+  border-style: solid;
+  box-shadow: 0 0 35px rgba(239, 68, 68, 0.6), 0 0 0 9999px rgba(0, 0, 0, 0.5);
+}
+
+@keyframes matched-pulse {
+  from { transform: scale(1); }
+  to { transform: scale(1.03); }
+}
+
+/* Scanner Laser Line */
+.face-live-laser-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #38bdf8, transparent);
+  box-shadow: 0 0 12px #38bdf8;
+  opacity: 0.8;
+  animation: live-laser-sweep 2.2s infinite ease-in-out;
+}
+
+.face-live-radar-box.matched .face-live-laser-line {
+  background: linear-gradient(90deg, transparent, #22c55e, transparent);
+  box-shadow: 0 0 15px #22c55e;
+}
+
+@keyframes live-laser-sweep {
+  0% { top: 5%; opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { top: 92%; opacity: 0; }
+}
+
+/* Countdown Number Badge */
+.face-live-countdown-text {
+  font-size: 58px;
+  font-weight: 800;
+  color: #22c55e;
+  text-shadow: 0 4px 20px rgba(0, 0, 0, 0.8), 0 0 30px rgba(34, 197, 94, 0.8);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  animation: count-zoom 0.5s ease-out;
+}
+
+@keyframes count-zoom {
+  0% { transform: scale(0.4); opacity: 0; }
+  70% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Live Status Pill (Bottom / Top) */
+.face-live-status-pill {
+  pointer-events: auto;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #fff;
+  padding: 10px 20px;
+  border-radius: 30px;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  margin-bottom: 20px;
+  max-width: 90%;
+  text-align: center;
+  transition: all 0.25s ease;
+}
+
+.face-live-status-pill.searching {
+  border-color: rgba(56, 189, 248, 0.4);
+  color: #e0f2fe;
+}
+
+.face-live-status-pill.matching {
+  border-color: rgba(251, 191, 36, 0.4);
+  color: #fef3c7;
+}
+
+.face-live-status-pill.matched {
+  background: rgba(20, 83, 45, 0.92);
+  border-color: rgba(34, 197, 94, 0.6);
+  color: #dcfce7;
+  box-shadow: 0 8px 30px rgba(34, 197, 94, 0.3);
+}
+
+.face-live-status-pill.mismatch {
+  background: rgba(127, 29, 29, 0.92);
+  border-color: rgba(239, 68, 68, 0.6);
+  color: #fee2e2;
+  box-shadow: 0 8px 30px rgba(239, 68, 68, 0.3);
+}
+
+.face-live-status-pill .pill-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #38bdf8;
+  box-shadow: 0 0 8px #38bdf8;
+}
+
+.face-live-status-pill.matched .pill-dot {
+  background: #22c55e;
+  box-shadow: 0 0 10px #22c55e;
+}
+
+.face-live-status-pill.mismatch .pill-dot {
+  background: #ef4444;
+  box-shadow: 0 0 10px #ef4444;
+}
+
+/* Gate Warning Card (Unregistered or Pending Approval) */
+.face-live-gate-card {
+  pointer-events: auto;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #ffffff;
+  color: #1e293b;
+  width: 90%;
+  max-width: 360px;
+  border-radius: 16px;
+  padding: 24px 20px;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  border: 1px solid #e2e8f0;
+  z-index: 2147483645;
+  animation: toastIn 0.3s ease-out;
+}
+
+.face-live-gate-card .gate-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px auto;
+  font-size: 28px;
+}
+
+.face-live-gate-card.warning .gate-icon {
+  background: #fffbeb;
+  color: #f59e0b;
+}
+
+.face-live-gate-card.danger .gate-icon {
+  background: #fef2f2;
+  color: #ef4444;
+}
+
+.face-live-gate-card h4 {
+  margin: 0 0 8px 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.face-live-gate-card p {
+  margin: 0 0 20px 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #64748b;
+}
+
+.face-live-gate-card .btn-gate-action {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: none;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  background: #0054e9;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 14px rgba(0, 84, 233, 0.3);
+}
+
+.face-live-gate-card .btn-gate-close {
+  margin-top: 10px;
+  background: transparent;
+  border: none;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+
