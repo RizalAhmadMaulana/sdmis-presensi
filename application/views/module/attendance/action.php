@@ -8,16 +8,28 @@
     <div class="col-12 mb-1 text-center">
       <?php if ($inout=='in') { ?>
         <?php if ($datas['foto_absen_masuk']!='') { ?>
-        <img class="img-fluid rounded" src="<?=base_url($datas['foto_absen_masuk']);?>" width="300" />
+        <img class="img-fluid rounded border shadow-sm" src="<?=base_url($datas['foto_absen_masuk']);?>" width="300" />
         <?php }else{ ?>
           Tidak ada foto.
         <?php } ?>
       <?php }else if ($inout=='out') { ?>
         <?php if ($datas['foto_absen_keluar']!='') { ?>
-        <img class="img-fluid rounded" src="<?=base_url($datas['foto_absen_keluar']);?>" width="300" />
+        <img class="img-fluid rounded border shadow-sm" src="<?=base_url($datas['foto_absen_keluar']);?>" width="300" />
         <?php }else{ ?>
           Tidak ada foto.
         <?php } ?>
+      <?php } ?>
+
+      <?php if (isset($datas['face_status']) && !empty($datas['face_status'])) { ?>
+      <div class="mt-3 text-center">
+        <?php if ($datas['face_status'] == 'verified' || $datas['face_status'] == 'matched') { ?>
+          <span class="badge bg-label-success fs-6"><i class="ti ti-scan me-1"></i> Wajah Terverifikasi Cocok<?php if (!empty($datas['face_similarity_score'])) { echo ' (Akurasi: '.round((1 - floatval($datas['face_similarity_score'])) * 100).'%)'; } ?></span>
+        <?php } else if ($datas['face_status'] == 'mismatch' || $datas['face_status'] == 'unverified') { ?>
+          <span class="badge bg-label-danger fs-6"><i class="ti ti-alert-triangle me-1"></i> Wajah Tidak Cocok</span>
+        <?php } else { ?>
+          <span class="badge bg-label-secondary fs-6">Face Status: <?=htmlspecialchars($datas['face_status']);?></span>
+        <?php } ?>
+      </div>
       <?php } ?>
     </div>
   </div>

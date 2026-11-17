@@ -1,9 +1,10 @@
 .DS_Store
-.htaccess
-presensi_webapp/.htaccess
 
 assets/uploaded/users/*
 !assets/uploaded/users/index.html
+
+assets/uploaded/faces/*
+!assets/uploaded/faces/index.html
 
 application/cache/*
 !application/cache/index.html

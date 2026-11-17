@@ -1,0 +1,18 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Gunakan %{REQUEST_URI} untuk membuat RewriteBase dinamis
+  RewriteCond %{REQUEST_URI}::$1 ^(/.+)/(.*)::\2$
+  RewriteRule ^(.*) - [E=BASE:%1]
+
+  # Arahkan semua error (Not Found dll) ke index.html di folder saat ini
+  ErrorDocument 400 %{ENV:BASE}/index.html
+  ErrorDocument 403 %{ENV:BASE}/index.html
+  ErrorDocument 404 %{ENV:BASE}/index.html
+  ErrorDocument 500 %{ENV:BASE}/index.html
+
+  # Aturan standar SPA (Single Page Application)
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^(.*)$ index.html [QSA,L]
+</IfModule>

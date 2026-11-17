@@ -1,0 +1,18 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # 1. Environment Lokal (Localhost / LAN IP XAMPP)
+    RewriteCond %{HTTP_HOST} ^(localhost|127\.0\.0\.1|192\.168\.|10\.) [NC]
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ /mis_dev/sdmis/index.php?/$1 [L]
+
+    # 2. Environment Production (Hostinger sdmis.sch.id)
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ index.php?/$1 [L]
+</IfModule>
+
+<IfModule !mod_rewrite.c>
+    ErrorDocument 404 /index.php
+</IfModule>

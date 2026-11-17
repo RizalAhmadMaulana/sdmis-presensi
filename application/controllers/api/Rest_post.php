@@ -9,11 +9,17 @@ class Rest_post extends CI_Controller {
 
     function __construct() {
         parent::__construct();
-        header('Access-Control-Allow-Origin: *');
+        $origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '*';
+        header('Access-Control-Allow-Origin: ' . $origin);
         header("Access-Control-Allow-Credentials: true");
         header("Access-Control-Allow-Methods: PUT, GET, POST, DELETE, OPTIONS");
-        header("Access-Control-Allow-Headers: Origin, Content-Type, Authorization, Accept, X-Requested-With, x-xsrf-token");
+        header("Access-Control-Allow-Headers: Origin, Content-Type, Authorization, Accept, X-Requested-With, x-xsrf-token, X-CSRF-Token, token");
         header("Content-Type: application/json; charset=utf-8");
+
+        if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+            http_response_code(200);
+            exit();
+        }
         $this->load->model('user/api/post_model', 'post');
 
         require APPPATH.'libraries/phpmailer/src/Exception.php';
@@ -86,6 +92,24 @@ class Rest_post extends CI_Controller {
     function reset_absen() {
         $postjson = json_decode(file_get_contents('php://input'), true);
         $data = $this->post->reset_absen($postjson);
+        echo $data;
+    }
+
+    function face_register() {
+        $postjson = json_decode(file_get_contents('php://input'), true);
+        $data = $this->post->face_register($postjson);
+        echo $data;
+    }
+
+    function face_get_descriptors() {
+        $postjson = json_decode(file_get_contents('php://input'), true);
+        $data = $this->post->face_get_descriptors($postjson);
+        echo $data;
+    }
+
+    function face_status() {
+        $postjson = json_decode(file_get_contents('php://input'), true);
+        $data = $this->post->face_status($postjson);
         echo $data;
     }
 

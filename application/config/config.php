@@ -29,17 +29,12 @@ date_default_timezone_set('Asia/Jakarta');
 //$config['base_url'] = ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == "on") ? "https" : "http");
 //$config['base_url'] .= "://".$_SERVER['HTTP_HOST'];
 //$config['base_url'] .= str_replace(basename($_SERVER['SCRIPT_NAME']),"",$_SERVER['SCRIPT_NAME']);
-$is_localhost = ($_SERVER['HTTP_HOST'] == 'localhost' || $_SERVER['HTTP_HOST'] == '127.0.0.1');
+$http_host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'localhost';
+$protocol = ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == "on") || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] == "https")) ? "https" : "http";
+$script_name = isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '';
+$script_dir = $script_name !== '' ? str_replace(basename($script_name), "", $script_name) : '/';
 
-if ($is_localhost) {
-    // URL Lokal (Sesuaikan dengan nama folder mis_dev)
-    $config['base_url'] = 'http://localhost/mis_dev/sdmis/';
-} else {
-    // URL Production Hostinger otomatis (mendeteksi http/https dan nama domain)
-    $config['base_url'] = ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == "on") ? "https" : "http");
-    $config['base_url'] .= "://".$_SERVER['HTTP_HOST'];
-    $config['base_url'] .= str_replace(basename($_SERVER['SCRIPT_NAME']),"",$_SERVER['SCRIPT_NAME']);
-}
+$config['base_url'] = $protocol . "://" . $http_host . $script_dir;
 
 $config['nhub_url'] = $config['base_url'].'../';
 

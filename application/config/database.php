@@ -72,7 +72,17 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 */
 $active_group = 'default';
 $query_builder = TRUE;
-$is_localhost = ($_SERVER['HTTP_HOST'] == 'localhost' || $_SERVER['HTTP_HOST'] == '127.0.0.1');
+$http_host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : '';
+$doc_root  = isset($_SERVER['DOCUMENT_ROOT']) ? strtolower($_SERVER['DOCUMENT_ROOT']) : '';
+$is_localhost = (
+    strpos($http_host, 'localhost') !== FALSE ||
+    strpos($http_host, '127.0.0.1') !== FALSE ||
+    strpos($http_host, '192.168.') === 0 ||
+    strpos($http_host, '10.') === 0 ||
+    strpos($http_host, '172.') === 0 ||
+    strpos($doc_root, 'xampp') !== FALSE ||
+    strpos($doc_root, 'wamp') !== FALSE
+);
 
 $db['default'] = array(
 	'dsn'	=> '',

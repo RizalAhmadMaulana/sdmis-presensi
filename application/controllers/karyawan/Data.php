@@ -187,4 +187,61 @@ class Data extends CI_Controller {
 
     }
 
+    public function face_approve($id = null) {
+        cek_menu_access();
+        if ($id == null) { redirect('karyawan/data'); }
+
+        $check = $this->db->get_where('m_pegawai', ['pegawai_id' => $id, 'is_del' => 'n']);
+        if ($check->num_rows() == 0) {
+            $this->session->set_flashdata('message', '<div class="me-3 ms-3 mt-3"><div class="alert alert-danger p-cg" role="alert">Data karyawan tidak ditemukan.</div></div>');
+            redirect('karyawan/data');
+        }
+
+        $pegawai = $check->row_array();
+        $this->db->where('pegawai_id', $id);
+        $res = $this->db->update('m_pegawai_face', [
+            'is_verified' => 'y',
+            'updated_at'  => date('Y-m-d H:i:s')
+        ]);
+
+        if ($res) {
+            $this->db->where('pegawai_id', $id);
+            $this->db->update('m_pegawai', ['is_face_registered' => 'y']);
+            $this->session->set_flashdata('message', '<div class="me-3 ms-3 mt-3"><div class="alert alert-success p-cg" role="alert">Biometrik wajah <b>'.$pegawai['nama_pegawai'].'</b> berhasil diverifikasi dan disetujui! Guru sekarang dapat melakukan absensi biometrik.</div></div>');
+        } else {
+            $this->session->set_flashdata('message', '<div class="me-3 ms-3 mt-3"><div class="alert alert-danger p-cg" role="alert">Gagal memverifikasi wajah. Silakan coba lagi.</div></div>');
+        }
+
+        redirect('karyawan/data');
+    }
+
+    public function face_reset($id = null) {
+        cek_menu_access();
+        if ($id == null) { redirect('karyawan/data'); }
+
+        $check = $this->db->get_where('m_pegawai', ['pegawai_id' => $id, 'is_del' => 'n']);
+        if ($check->num_rows() == 0) {
+            $this->session->set_flashdata('message', '<div class="me-3 ms-3 mt-3"><div class="alert alert-danger p-cg" role="alert">Data karyawan tidak ditemukan.</div></div>');
+            redirect('karyawan/data');
+        }
+
+        $pegawai = $check->row_array();
+
+        // Ambil data foto sampel untuk dihapus dari storage jika ada
+        $q_face = $this->db->get_where('m_pegawai_face', ['pegawai_id' => $id])->row_array();
+        if ($q_face && !empty($q_face['foto_sample']) && file_exists(FCPATH . $q_face['foto_sample'])) {
+            @unlink(FCPATH . $q_face['foto_sample']);
+        }
+
+        // Hapus data biometrik dari m_pegawai_face
+        $this->db->delete('m_pegawai_face', ['pegawai_id' => $id]);
+
+        // Reset status di m_pegawai
+        $this->db->where('pegawai_id', $id);
+        $this->db->update('m_pegawai', ['is_face_registered' => 'n']);
+
+        $this->session->set_flashdata('message', '<div class="me-3 ms-3 mt-3"><div class="alert alert-warning p-cg" role="alert">Data biometrik wajah <b>'.$pegawai['nama_pegawai'].'</b> berhasil direset. Guru dapat melakukan pendaftaran scan wajah baru.</div></div>');
+        redirect('karyawan/data');
+    }
+
 }

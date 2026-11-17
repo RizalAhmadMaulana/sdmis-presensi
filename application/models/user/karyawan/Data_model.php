@@ -8,8 +8,16 @@ class Data_model extends CI_Model {
     }
 
 	public function get_data() {
-        $query = $this->db->query("SELECT * FROM m_pegawai
-        	WHERE is_del='n'")->result_array();
+        $has_face_table = $this->db->query("SHOW TABLES LIKE 'm_pegawai_face'")->num_rows();
+        if ($has_face_table > 0) {
+            $query = $this->db->query("SELECT a.*, b.face_id, b.foto_sample, b.is_verified as face_verified, b.updated_at as face_updated_at 
+            	FROM m_pegawai a
+            	LEFT JOIN m_pegawai_face b ON a.pegawai_id=b.pegawai_id
+            	WHERE a.is_del='n'")->result_array();
+        } else {
+            $query = $this->db->query("SELECT * FROM m_pegawai
+            	WHERE is_del='n'")->result_array();
+        }
         return $query;
     }
 

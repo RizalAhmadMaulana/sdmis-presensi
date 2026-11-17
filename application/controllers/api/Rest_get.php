@@ -9,11 +9,17 @@ class Rest_get extends CI_Controller {
 
     function __construct() {
         parent::__construct();
-        header('Access-Control-Allow-Origin: *');
+        $origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '*';
+        header('Access-Control-Allow-Origin: ' . $origin);
         header("Access-Control-Allow-Credentials: true");
         header("Access-Control-Allow-Methods: PUT, GET, POST, DELETE, OPTIONS");
-        header("Access-Control-Allow-Headers: Origin, Content-Type, Authorization, Accept, X-Requested-With, x-xsrf-token");
+        header("Access-Control-Allow-Headers: Origin, Content-Type, Authorization, Accept, X-Requested-With, x-xsrf-token, X-CSRF-Token, token");
         header("Content-Type: application/json; charset=utf-8");
+
+        if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+            http_response_code(200);
+            exit();
+        }
         $this->load->model('user/api/get_model', 'get');
 
         require APPPATH.'libraries/phpmailer/src/Exception.php';
