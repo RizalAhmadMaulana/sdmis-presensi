@@ -8,14 +8,14 @@
         <span class="text-muted fw-light">Penggajian /</span> Manajemen Ekstra & Siswa
       </h4>
       <p class="text-muted mb-0 small">
-        Tracking status pembayaran administrasi ekstrakurikuler siswa dan otomatisasi penangguhan honor guru pengampu (Carry-Over) sesuai SOP 6, 7, dan 8.
+        Tracking status pembayaran administrasi ekstrakurikuler siswa dan otomatisasi penangguhan honor guru pengampu (Carry-Over).
       </p>
     </div>
     <div class="d-flex gap-2">
-      <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalMasterEkstra">
+      <button type="button" class="btn btn-outline-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#modalMasterEkstra">
         <i class="ti ti-settings me-1"></i> Master Cabang Ekstra
       </button>
-      <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalTambahSiswa">
+      <button type="button" class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#modalTambahSiswa">
         <i class="ti ti-user-plus me-1"></i> Tambah Peserta Siswa
       </button>
     </div>
@@ -48,7 +48,7 @@
         <div class="card-body">
           <div class="d-flex align-items-center justify-content-between">
             <div>
-              <span class="text-muted small fw-semibold d-block mb-1">Siswa Lunas (SOP 7)</span>
+              <span class="text-muted small fw-semibold d-block mb-1">Siswa Lunas</span>
               <h3 class="card-title mb-0 text-success fw-bold"><?=$stats['total_lunas'];?> Siswa</h3>
               <small class="text-success"><i class="ti ti-check me-1"></i>Honor Masuk Mukafaah</small>
             </div>
@@ -65,7 +65,7 @@
         <div class="card-body">
           <div class="d-flex align-items-center justify-content-between">
             <div>
-              <span class="text-muted small fw-semibold d-block mb-1">Siswa Belum Lunas (SOP 8)</span>
+              <span class="text-muted small fw-semibold d-block mb-1">Siswa Belum Lunas</span>
               <h3 class="card-title mb-0 text-warning fw-bold"><?=$stats['total_pending'];?> Siswa</h3>
               <small class="text-warning"><i class="ti ti-clock me-1"></i>Honor Ditangguhkan</small>
             </div>
@@ -154,7 +154,11 @@
         </h5>
         <small class="text-muted">Klik tombol status pelunasan untuk mengubah status Lunas atau Belum Lunas secara langsung.</small>
       </div>
-      <span class="badge bg-label-info">SOP Poin 7 & 8</span>
+      <?php if (empty($siswas)) { ?>
+        <button type="button" class="btn btn-sm btn-primary rounded-pill shadow-sm" data-bs-toggle="modal" data-bs-target="#modalTambahSiswa">
+          <i class="ti ti-plus me-1"></i> Tambah Siswa Pertama
+        </button>
+      <?php } ?>
     </div>
 
     <div class="card-datatable table-responsive">
@@ -168,7 +172,7 @@
             <th class="text-end">Tarif Tagihan</th>
             <th class="text-center">Status Pelunasan</th>
             <th class="text-center">Tanggal Bayar</th>
-            <th class="text-center" style="width: 80px;">Aksi</th>
+            <th class="text-center" style="width: 100px;">Aksi</th>
           </tr>
         </thead>
         <tbody>
@@ -221,27 +225,30 @@
                 </td>
 
                 <td class="text-center align-middle">
-                  <a href="<?=base_url('gaji/ekstra/delete_siswa/'.$row['id']);?>" 
+                  <button type="button" 
+                          class="btn btn-xs btn-outline-primary p-1 btn-edit-siswa me-1"
+                          data-id="<?=$row['id'];?>"
+                          data-ekstra="<?=$row['ekstra_id'];?>"
+                          data-nama="<?=htmlspecialchars($row['nama_siswa']);?>"
+                          data-kelas="<?=htmlspecialchars($row['kelas'] ?: '');?>"
+                          data-tagihan="<?=$row['nominal_tagihan'] > 0 ? $row['nominal_tagihan'] : $row['tarif_standar'];?>"
+                          data-bulan="<?=$row['bulan'];?>"
+                          data-tahun="<?=$row['tahun'];?>"
+                          data-status="<?=$row['status_bayar'];?>"
+                          data-tglbayar="<?=$row['tanggal_bayar'] ?: '';?>"
+                          data-ket="<?=htmlspecialchars($row['keterangan'] ?: '');?>"
+                          title="Edit Siswa">
+                    <i class="ti ti-edit"></i>
+                  </button>
+                  <a href="<?=base_url('gaji/ekstra/delete_siswa/'.$row['id'].'?bulan='.$bulan.'&tahun='.$tahun.'&ekstra_id='.$selected_ekstra_id);?>" 
                      class="btn btn-xs btn-outline-danger p-1" 
                      onclick="return confirm('Apakah Anda yakin ingin menghapus data siswa <?=htmlspecialchars($row['nama_siswa']);?>?');"
-                     title="Hapus Peserta">
+                     title="Hapus Siswa">
                     <i class="ti ti-trash"></i>
                   </a>
                 </td>
               </tr>
             <?php endforeach; ?>
-          <?php } else { ?>
-            <tr>
-              <td colspan="8" class="text-center text-muted py-4">
-                <i class="ti ti-users-minus fs-2 d-block mb-1 text-secondary"></i>
-                Belum ada data siswa ekstra terdaftar pada periode bulan <?=$bulan;?> / <?=$tahun;?>.
-                <div class="mt-2">
-                  <button type="button" class="btn btn-sm btn-primary rounded-pill" data-bs-toggle="modal" data-bs-target="#modalTambahSiswa">
-                    <i class="ti ti-plus me-1"></i> Tambah Siswa Pertama
-                  </button>
-                </div>
-              </td>
-            </tr>
           <?php } ?>
         </tbody>
       </table>
@@ -313,14 +320,14 @@
               <input class="form-check-input" type="radio" name="status_bayar" id="sb_lunas" value="lunas" checked>
               <label class="form-check-label" for="sb_lunas">
                 <span class="badge bg-success me-1">LUNAS</span> 
-                Honor langsung dicairkan ke guru di bulan berjalan (SOP 7).
+                Honor langsung dicairkan ke guru di bulan berjalan.
               </label>
             </div>
             <div class="form-check mt-1">
               <input class="form-check-input" type="radio" name="status_bayar" id="sb_pending" value="pending">
               <label class="form-check-label" for="sb_pending">
                 <span class="badge bg-warning text-dark me-1">BELUM LUNAS</span> 
-                Honor ditangguhkan (*Carry-Over* ke bulan berikutnya saat lunas) (SOP 8).
+                Honor ditangguhkan (*Carry-Over* ke bulan berikutnya saat lunas).
               </label>
             </div>
           </div>
@@ -337,7 +344,89 @@
   </div>
 </div>
 
-<!-- MODAL MASTER CABANG EKSTRAKURIKULER -->
+<!-- MODAL EDIT PESERTA SISWA -->
+<div class="modal fade" id="modalEditSiswa" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title d-flex align-items-center">
+          <i class="ti ti-edit me-2 text-primary"></i> Edit Data Peserta Siswa Ekstra
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <form action="<?=base_url('gaji/ekstra/edit_siswa');?>" method="POST">
+        <input type="hidden" name="id" id="edit_siswa_id">
+
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-bold" for="edit_siswa_ekstra_id">Cabang Ekstrakurikuler <span class="text-danger">*</span></label>
+            <select class="form-select" id="edit_siswa_ekstra_id" name="ekstra_id" required>
+              <?php foreach ($ekstras as $ek) : ?>
+                <option value="<?=$ek['ekstra_id'];?>"><?=$ek['nama_ekstra'];?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold" for="edit_siswa_nama">Nama Lengkap Siswa <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="edit_siswa_nama" name="nama_siswa" required>
+          </div>
+
+          <div class="row g-2 mb-3">
+            <div class="col-md-6 col-12">
+              <label class="form-label fw-bold" for="edit_siswa_kelas">Kelas</label>
+              <input type="text" class="form-control" id="edit_siswa_kelas" name="kelas">
+            </div>
+
+            <div class="col-md-6 col-12">
+              <label class="form-label fw-bold" for="edit_siswa_tagihan">Nominal Tagihan (Rp)</label>
+              <input type="number" step="1000" class="form-control" id="edit_siswa_tagihan" name="nominal_tagihan" required>
+            </div>
+          </div>
+
+          <div class="row g-2 mb-3">
+            <div class="col-md-6 col-12">
+              <label class="form-label fw-bold" for="edit_siswa_bulan">Bulan Periode</label>
+              <select class="form-select" id="edit_siswa_bulan" name="bulan">
+                <?php foreach ($nama_bulan as $m_num => $m_name) : ?>
+                  <option value="<?=$m_num;?>"><?=$m_name;?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+
+            <div class="col-md-6 col-12">
+              <label class="form-label fw-bold" for="edit_siswa_tahun">Tahun</label>
+              <input type="number" class="form-control" id="edit_siswa_tahun" name="tahun" required>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold" for="edit_siswa_status">Status Pembayaran</label>
+            <select class="form-select" id="edit_siswa_status" name="status_bayar">
+              <option value="lunas">LUNAS (Cair)</option>
+              <option value="pending">BELUM LUNAS (Carry-Over)</option>
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold" for="edit_siswa_keterangan">Keterangan Tambahan</label>
+            <input type="text" class="form-control" id="edit_siswa_keterangan" name="keterangan" placeholder="Catatan...">
+          </div>
+        </div>
+
+        <div class="modal-footer border-top">
+          <button type="button" class="btn btn-label-secondary" data-bs-dismiss="modal">Batal</button>
+          <button type="submit" class="btn btn-primary px-4">
+            <i class="ti ti-device-floppy me-1"></i> Simpan Perubahan Siswa
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL MASTER CABANG EKSTRAKURIKULER (FULL CRUD: TAMBAH, EDIT, HAPUS) -->
 <div class="modal fade" id="modalMasterEkstra" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
@@ -350,8 +439,16 @@
 
       <div class="modal-body p-4">
         <!-- FORM TAMBAH / UPDATE CABANG -->
-        <form action="<?=base_url('gaji/ekstra/save_ekstra');?>" method="POST" class="p-3 bg-light rounded border mb-4">
-          <h6 class="fw-bold mb-3 text-primary"><i class="ti ti-plus me-1"></i> Tambah / Perbarui Cabang Ekstra</h6>
+        <form id="formMasterEkstra" action="<?=base_url('gaji/ekstra/save_ekstra');?>" method="POST" class="p-3 bg-light rounded border mb-4">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 id="title_form_ekstra" class="fw-bold mb-0 text-primary">
+              <i class="ti ti-plus me-1"></i> Tambah Cabang Ekstra Baru
+            </h6>
+            <button type="button" id="btn_cancel_edit_ekstra" class="btn btn-xs btn-label-secondary d-none">
+              <i class="ti ti-x me-1"></i> Batal Edit
+            </button>
+          </div>
+
           <input type="hidden" name="ekstra_id" id="edit_ekstra_id" value="0">
 
           <div class="row g-2">
@@ -390,23 +487,24 @@
             </div>
 
             <div class="col-12 text-end mt-3">
-              <button type="submit" class="btn btn-sm btn-primary">
+              <button type="submit" id="btn_submit_ekstra" class="btn btn-sm btn-primary">
                 <i class="ti ti-device-floppy me-1"></i> Simpan Cabang Ekstra
               </button>
             </div>
           </div>
         </form>
 
-        <!-- TABEL CABANG EKSTRA -->
+        <!-- TABEL CABANG EKSTRA LENGKAP DENGAN AKSI EDIT & HAPUS -->
         <h6 class="fw-bold mb-2">Daftar Cabang Ekstrakurikuler Aktif</h6>
         <div class="table-responsive">
-          <table class="table table-sm table-bordered">
+          <table class="table table-sm table-bordered table-hover">
             <thead class="table-light">
               <tr>
                 <th>Nama Ekstra</th>
                 <th>Guru Pengampu</th>
                 <th>Tipe Honor</th>
                 <th class="text-end">Tarif Standar</th>
+                <th class="text-center" style="width: 80px;">Aksi</th>
               </tr>
             </thead>
             <tbody>
@@ -420,6 +518,25 @@
                     </span>
                   </td>
                   <td class="text-end fw-bold">Rp <?=number_format($ek['tarif_standar'], 0, ',', '.');?></td>
+                  <td class="text-center">
+                    <button type="button" 
+                            class="btn btn-xs btn-outline-primary p-1 btn-edit-ekstra me-1"
+                            data-id="<?=$ek['ekstra_id'];?>"
+                            data-nama="<?=htmlspecialchars($ek['nama_ekstra']);?>"
+                            data-pegawai="<?=$ek['pegawai_id'] ?: '';?>"
+                            data-tipe="<?=$ek['tipe_honor'];?>"
+                            data-tarif="<?=$ek['tarif_standar'];?>"
+                            data-ket="<?=htmlspecialchars($ek['keterangan'] ?: '');?>"
+                            title="Edit Cabang">
+                      <i class="ti ti-edit"></i>
+                    </button>
+                    <a href="<?=base_url('gaji/ekstra/delete_ekstra/'.$ek['ekstra_id']);?>" 
+                       class="btn btn-xs btn-outline-danger p-1"
+                       onclick="return confirm('Apakah Anda yakin ingin menghapus cabang ekstra <?=htmlspecialchars($ek['nama_ekstra']);?>? Seluruh data peserta siswa terkait juga akan ikut terhapus.');"
+                       title="Hapus Cabang">
+                      <i class="ti ti-trash"></i>
+                    </a>
+                  </td>
                 </tr>
               <?php endforeach; ?>
             </tbody>
@@ -433,3 +550,61 @@
     </div>
   </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Matikan alert popup bawaan DataTables tn18
+  if (typeof $.fn !== 'undefined' && typeof $.fn.dataTable !== 'undefined') {
+    $.fn.dataTable.ext.errMode = 'none';
+  }
+
+  // Edit Siswa Logic
+  const editSiswaBtns = document.querySelectorAll('.btn-edit-siswa');
+  const modalEditSiswaEl = document.getElementById('modalEditSiswa');
+  const bsModalEditSiswa = new bootstrap.Modal(modalEditSiswaEl);
+
+  editSiswaBtns.forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.getElementById('edit_siswa_id').value = this.getAttribute('data-id');
+      document.getElementById('edit_siswa_ekstra_id').value = this.getAttribute('data-ekstra');
+      document.getElementById('edit_siswa_nama').value = this.getAttribute('data-nama');
+      document.getElementById('edit_siswa_kelas').value = this.getAttribute('data-kelas');
+      document.getElementById('edit_siswa_tagihan').value = this.getAttribute('data-tagihan');
+      document.getElementById('edit_siswa_bulan').value = this.getAttribute('data-bulan');
+      document.getElementById('edit_siswa_tahun').value = this.getAttribute('data-tahun');
+      document.getElementById('edit_siswa_status').value = this.getAttribute('data-status');
+      document.getElementById('edit_siswa_keterangan').value = this.getAttribute('data-ket');
+      bsModalEditSiswa.show();
+    });
+  });
+
+  // Edit Cabang Ekstra Logic
+  const editEkstraBtns = document.querySelectorAll('.btn-edit-ekstra');
+  const cancelEditBtn = document.getElementById('btn_cancel_edit_ekstra');
+
+  editEkstraBtns.forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.getElementById('edit_ekstra_id').value = this.getAttribute('data-id');
+      document.getElementById('edit_nama_ekstra').value = this.getAttribute('data-nama');
+      document.getElementById('edit_pegawai_id').value = this.getAttribute('data-pegawai');
+      document.getElementById('edit_tipe_honor').value = this.getAttribute('data-tipe');
+      document.getElementById('edit_tarif_standar').value = this.getAttribute('data-tarif');
+      document.getElementById('edit_keterangan').value = this.getAttribute('data-ket');
+
+      document.getElementById('title_form_ekstra').innerHTML = '<i class="ti ti-edit me-1"></i> Edit Cabang Ekstra: ' + this.getAttribute('data-nama');
+      document.getElementById('btn_submit_ekstra').innerHTML = '<i class="ti ti-check me-1"></i> Update Cabang Ekstra';
+      cancelEditBtn.classList.remove('d-none');
+    });
+  });
+
+  if (cancelEditBtn) {
+    cancelEditBtn.addEventListener('click', function() {
+      document.getElementById('formMasterEkstra').reset();
+      document.getElementById('edit_ekstra_id').value = '0';
+      document.getElementById('title_form_ekstra').innerHTML = '<i class="ti ti-plus me-1"></i> Tambah Cabang Ekstra Baru';
+      document.getElementById('btn_submit_ekstra').innerHTML = '<i class="ti ti-device-floppy me-1"></i> Simpan Cabang Ekstra';
+      this.classList.add('d-none');
+    });
+  }
+});
+</script>

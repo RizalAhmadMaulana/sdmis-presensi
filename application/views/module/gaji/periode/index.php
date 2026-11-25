@@ -25,9 +25,6 @@
       <h5 class="card-title mb-0 d-flex align-items-center">
         <i class="ti ti-calendar-event me-2 text-primary"></i> Riwayat Periode Penggajian Bulanan
       </h5>
-      <span class="badge bg-label-primary small">
-        <i class="ti ti-info-circle me-1"></i> SOP 1 & 2: Cut-Off Presensi Tgl 1 s/d 30/31
-      </span>
     </div>
 
     <div class="card-datatable table-responsive">
@@ -99,22 +96,20 @@
                 </td>
               </tr>
             <?php endforeach; ?>
-          <?php } else { ?>
-            <tr>
-              <td colspan="8" class="text-center text-muted py-5">
-                <i class="ti ti-calendar-off fs-1 d-block mb-2 text-secondary"></i>
-                Belum ada periode penggajian yang dibuat.
-                <div class="mt-2">
-                  <button type="button" class="btn btn-primary rounded-pill" data-bs-toggle="modal" data-bs-target="#modalBuatPeriode">
-                    <i class="ti ti-plus me-1"></i> Buat Periode Pertama
-                  </button>
-                </div>
-              </td>
-            </tr>
           <?php } ?>
         </tbody>
       </table>
     </div>
+
+    <?php if (empty($periodes)) { ?>
+      <div class="card-body text-center py-5 border-top">
+        <i class="ti ti-calendar-off fs-1 d-block mb-2 text-secondary"></i>
+        <p class="text-muted mb-2">Belum ada periode penggajian yang dibuat.</p>
+        <button type="button" class="btn btn-primary rounded-pill shadow-sm" data-bs-toggle="modal" data-bs-target="#modalBuatPeriode">
+          <i class="ti ti-plus me-1"></i> Buat Periode Pertama
+        </button>
+      </div>
+    <?php } ?>
   </div>
 </div>
 
@@ -132,7 +127,7 @@
       <form action="<?=base_url('gaji/periode/create');?>" method="POST">
         <div class="modal-body">
           <div class="alert alert-info py-2 px-3 small mb-3">
-            <i class="ti ti-info-circle me-1"></i> <strong>SOP Penggajian SDMIS:</strong> Evaluasi presensi dilakukan tanggal 1 s/d 30/31 bulan terkait.
+            <i class="ti ti-info-circle me-1"></i> <strong>Periode Penggajian:</strong> Evaluasi presensi dilakukan tanggal 1 s/d 30/31 bulan terkait.
           </div>
 
           <div class="row g-2 mb-3">
@@ -190,3 +185,11 @@
     </div>
   </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  if (typeof $.fn !== 'undefined' && typeof $.fn.dataTable !== 'undefined') {
+    $.fn.dataTable.ext.errMode = 'none';
+  }
+});
+</script>

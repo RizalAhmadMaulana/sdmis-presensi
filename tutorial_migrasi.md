@@ -362,6 +362,31 @@ Karena struktur tabel `m_gaji_setting_global` dan `m_gaji_hari_khusus` sudah dib
    https://sdmis.sch.id/gaji/periode
    ```
 
+---
+
+## 🛠️ Panduan Pengujian Fitur Full CRUD Ekstra & Verifikasi Perbaikan UI
+
+### A. Pengujian CRUD Master Cabang Ekstra:
+1. Buka halaman: `http://localhost/mis_dev/sdmis/gaji/ekstra`.
+2. Klik tombol **Master Cabang Ekstra**.
+3. **Pengujian Tambah**: Masukkan nama cabang baru (misal: *"Robotik & Coding"*), pilih guru pengampu, tentukan tipe honor dan tarif standar (misal: `50000`), lalu klik **Simpan Cabang Ekstra**.
+4. **Pengujian Edit**: Pada tabel di dalam modal, klik ikon **Edit** (pensil biru) pada baris cabang. Form di bagian atas akan otomatis terisi dengan data cabang tersebut. Ubah data (misal tarif menjadi `60000`), lalu klik **Update Cabang Ekstra**.
+5. **Pengujian Hapus**: Klik ikon **Hapus** (tong sampah merah) pada baris cabang yang ingin dihapus, lalu konfirmasi penghapusan. Cabang beserta data siswa terkait akan terhapus dengan aman.
+
+### B. Pengujian CRUD Checklist Siswa Ekstra:
+1. Klik tombol **Tambah Peserta Siswa** untuk mendaftarkan siswa baru.
+2. **Pengujian Edit Siswa**: Pada baris siswa di tabel utama, klik ikon **Edit** (pensil biru). Modal edit akan muncul dengan data siswa terpilih. Ubah kelas, nominal tagihan, atau status bayar, lalu klik **Simpan Perubahan Siswa**.
+3. **Pengujian 1-Click Toggle**: Klik tombol status pelunasan (hijau/kuning) pada baris tabel untuk mengubah status Lunas $\leftrightarrow$ Belum Lunas secara instan.
+4. **Pengujian Hapus Siswa**: Klik ikon **Hapus** (tong sampah merah) pada baris siswa untuk menghapus data siswa tersebut dari daftar ekstra.
+
+### C. Verifikasi Anti-Warning DataTables & Tampilan Bersih:
+1. Buka menu **Periode & Hitung Gaji** (`http://localhost/mis_dev/sdmis/gaji/periode`):
+   - Pastikan **tidak ada pop-up alert** DataTables yang muncul.
+   - Pastikan badge `"SOP 1 & 2: Cut-Off Presensi Tgl 1 s/d 30/31"` sudah **bersih/hilang**.
+2. Buka menu **Manajemen Ekstra & Siswa** (`http://localhost/mis_dev/sdmis/gaji/ekstra`):
+   - Pastikan badge teks `"SOP Poin 7 & 8"` pada bagian atas tabel sudah **bersih/hilang**.
+3. Pastikan pesan `"Telah keluar."` tidak lagi muncul di halaman manapun setelah proses login.
+
 
 
 

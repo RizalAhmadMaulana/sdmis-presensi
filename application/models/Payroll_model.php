@@ -911,6 +911,35 @@ class Payroll_model extends CI_Model {
         }
     }
 
+    /**
+     * Mengambil detail satu cabang ekstra berdasarkan ID
+     * @param int $ekstra_id
+     * @return array|bool
+     */
+    public function get_ekstra_by_id($ekstra_id) {
+        return $this->db->get_where('m_ekstra', ['ekstra_id' => $ekstra_id])->row_array();
+    }
+
+    /**
+     * Hapus cabang ekstra (soft delete is_active = 'n' atau delete)
+     * @param int $ekstra_id
+     * @return bool
+     */
+    public function delete_ekstra($ekstra_id) {
+        // Hapus juga peserta siswa yang terhubung agar integritas database terjaga
+        $this->db->where('ekstra_id', $ekstra_id)->delete('tx_ekstra_siswa');
+        return $this->db->where('ekstra_id', $ekstra_id)->delete('m_ekstra');
+    }
+
+    /**
+     * Mengambil detail satu data siswa ekstra berdasarkan ID
+     * @param int $id
+     * @return array|bool
+     */
+    public function get_siswa_ekstra_by_id($id) {
+        return $this->db->get_where('tx_ekstra_siswa', ['id' => $id])->row_array();
+    }
+
     // =========================================================================
     // 11. CRUD HELPER: PERIODE PENGGAJIAN & PENYESUAIAN MANUAL (TAHAP 6)
     // =========================================================================

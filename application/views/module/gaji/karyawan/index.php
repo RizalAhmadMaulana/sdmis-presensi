@@ -386,6 +386,10 @@
 <!-- JAVASCRIPT LOGIC UNTUK MODAL EDIT GAJI -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+  if (typeof $.fn !== 'undefined' && typeof $.fn.dataTable !== 'undefined') {
+    $.fn.dataTable.ext.errMode = 'none';
+  }
+
   const editButtons = document.querySelectorAll('.btn-edit-gaji');
   const modalElement = document.getElementById('modalEditGaji');
   const bsModal = new bootstrap.Modal(modalElement);

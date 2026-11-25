@@ -1235,6 +1235,49 @@ Membangun antarmuka siklus penggajian bulanan dengan fitur **Tombol Sakti ⚡ "H
    - `get_rincian_gaji_periode()`, `get_gaji_karyawan_by_id()`.
    - `add_penyesuaian_manual()`, `delete_penyesuaian_manual()`, `recalculate_single_karyawan()`.
 
+---
+
+## 🛠️ Pembaruan & Penyempurnaan Lanjutan (CRUD Ekstra Lengkap, DataTables tn/18 Fix, & Pembersihan UI)
+**Tanggal:** 25 November 2026  
+**Status:** Berhasil Diimplementasikan  
+
+### A. Rincian Masalah yang Diselesaikan:
+1. **Warning DataTables tn/18 (`Incorrect column count`)**:
+   - *Penyebab*: Tabel DataTables `#dataTable` di `gaji/periode/` memiliki 8 kolom header (`<th>`), namun saat data masih kosong, template merender satu baris `<tr><td colspan="8">...</td></tr>`. Hal ini menyebabkan JavaScript DataTables menghitung jumlah kolom sel tidak cocok (1 vs 8) dan memunculkan pop-up alert bawaan browser.
+   - *Solusi*: Mengosongkan tag `<tbody></tbody>` saat data belum ada agar DataTables menanganinya secara native, menampilkan kartu banner ajakan bertindak (Call-To-Action) yang elegan di luar tabel, serta menonaktifkan error pop-up dengan `$.fn.dataTable.ext.errMode = 'none';`.
+2. **Pembersihan Label Internal SOP pada Tampilan Antarmuka**:
+   - Menghapus badge `"SOP Poin 7 & 8"` pada tabel Checklist Ekstra Siswa (`views/module/gaji/ekstra/index.php`).
+   - Menghapus badge `"SOP 1 & 2: Cut-Off Presensi Tgl 1 s/d 30/31"` pada Riwayat Periode (`views/module/gaji/periode/index.php`).
+   - Mengubah seluruh teks teknis internal SOP pada modal dan kartu indikator menjadi keterangan administratif yang rapi dan profesional.
+3. **Penyelesaian Permanen Pesan Flashdata "Telah keluar."**:
+   - *Penyebab*: Pada sesi logout, sistem mencatat pesan flashdata `'Telah keluar.'`. Pada sesi login berikutnya di browser XAMPP lokal, pesan ini sempat tersimpan di file session dan terbawa ke dashboard admin.
+   - *Solusi*: Memodifikasi controller `application/controllers/Auth.php` pada fungsi `_login()` dan `index()` untuk secara otomatis membersihkan session flashdata `message` saat autentikasi berhasil, dan mengarahkan langsung ke dashboard admin.
+4. **Implementasi Full CRUD (Create, Read, Update, Delete) Modul Ekstrakurikuler**:
+   - **Master Cabang Ekstra**: Admin kini dapat menambah cabang baru, mengedit data cabang yang sudah ada (nama, guru pengampu, tipe honor, tarif standar, keterangan) secara langsung di dalam modal, membatalkan edit, serta menghapus cabang ekstra dengan konfirmasi keamanan.
+   - **Checklist Siswa Ekstra**: Admin kini dapat menambah peserta siswa, mengedit data siswa secara lengkap (nama, kelas, nominal tagihan, bulan, tahun, status bayar, keterangan) melalui modal `#modalEditSiswa`, menghapus data siswa, serta melakukan 1-Click Toggle status Lunas $\leftrightarrow$ Belum Lunas (Carry-Over).
+
+### B. Daftar File yang Dimodifikasi:
+1. `sdmis/application/controllers/Auth.php`:
+   - Membersihkan session flashdata `message` saat proses login berhasil agar tidak ada pesan tertinggal di halaman admin.
+2. `sdmis/application/models/Payroll_model.php`:
+   - Menambahkan method: `get_ekstra_by_id($ekstra_id)`, `delete_ekstra($ekstra_id)`, dan `get_siswa_ekstra_by_id($id)`.
+3. `sdmis/application/controllers/gaji/Ekstra.php`:
+   - Menambahkan method `edit_siswa()` dan `delete_ekstra($ekstra_id)`.
+4. `sdmis/application/views/module/gaji/ekstra/index.php`:
+   - Menambahkan modal `#modalEditSiswa` dengan integrasi JavaScript otomatis.
+   - Menambahkan tombol Aksi Edit dan Hapus pada tabel Master Cabang Ekstra di dalam modal `#modalMasterEkstra` lengkap dengan inline form edit dan tombol batal.
+   - Menghapus label "SOP Poin 7 & 8" dan menerapkan `$.fn.dataTable.ext.errMode = 'none';`.
+5. `sdmis/application/views/module/gaji/periode/index.php`:
+   - Menghapus badge `"SOP 1 & 2: Cut-Off Presensi Tgl 1 s/d 30/31"`.
+   - Mengosongkan `<tbody>` saat data belum ada dan menampilkan card empty state elegan di bawah tabel untuk mencegah error DataTables tn/18.
+   - Mengaktifkan `$.fn.dataTable.ext.errMode = 'none';`.
+6. `sdmis/application/views/module/gaji/periode/detail.php`:
+   - Mengosongkan `<tbody>` saat data rincian belum dikalkulasi dan menampilkan card instruksi kalkulasi presensi biometrik di luar tabel DataTables.
+   - Merapikan label form penyesuaian manual (SOP Poin 5) menjadi keterangan administratif sekolah.
+   - Mengaktifkan `$.fn.dataTable.ext.errMode = 'none';`.
+7. `sdmis/application/views/module/gaji/karyawan/index.php`:
+   - Mengaktifkan `$.fn.dataTable.ext.errMode = 'none';`.
+
 
 
 

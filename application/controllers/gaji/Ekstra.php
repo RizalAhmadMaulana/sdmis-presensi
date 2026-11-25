@@ -179,6 +179,70 @@ class Ekstra extends CI_Controller {
             $this->session->set_flashdata('message', '<div class="alert alert-success alert-dismissible p-3 mb-4" role="alert"><i class="ti ti-check me-2"></i> Data siswa ekstra berhasil dihapus.<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>');
         }
 
+        $bulan = (int)$this->input->get('bulan') ?: date('n');
+        $tahun = (int)$this->input->get('tahun') ?: date('Y');
+        $ekstra_id = (int)$this->input->get('ekstra_id');
+        $query_str = '?bulan=' . $bulan . '&tahun=' . $tahun . ($ekstra_id ? '&ekstra_id=' . $ekstra_id : '');
+        redirect('gaji/ekstra' . $query_str);
+    }
+
+    /**
+     * Edit / Update Data Siswa Ekstra
+     */
+    public function edit_siswa() {
+        cek_menu_access();
+
+        $id              = (int)$this->input->post('id', true);
+        $ekstra_id       = (int)$this->input->post('ekstra_id', true);
+        $nama_siswa      = trim($this->input->post('nama_siswa', true));
+        $kelas           = trim($this->input->post('kelas', true));
+        $bulan           = (int)$this->input->post('bulan', true);
+        $tahun           = (int)$this->input->post('tahun', true);
+        $nominal_tagihan = (float)$this->input->post('nominal_tagihan', true);
+        $status_bayar    = $this->input->post('status_bayar', true) === 'lunas' ? 'lunas' : 'pending';
+        $tanggal_bayar   = $status_bayar === 'lunas' ? ($this->input->post('tanggal_bayar', true) ?: date('Y-m-d')) : null;
+        $keterangan      = trim($this->input->post('keterangan', true));
+
+        if (!$id || empty($nama_siswa)) {
+            $this->session->set_flashdata('message', '<div class="alert alert-warning alert-dismissible p-3 mb-4" role="alert"><i class="ti ti-alert-circle me-2"></i> Data siswa tidak valid!<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>');
+            redirect('gaji/ekstra');
+            return;
+        }
+
+        $data_save = [
+            'ekstra_id'       => $ekstra_id,
+            'nama_siswa'      => $nama_siswa,
+            'kelas'           => $kelas,
+            'bulan'           => $bulan,
+            'tahun'           => $tahun,
+            'nominal_tagihan' => $nominal_tagihan,
+            'status_bayar'    => $status_bayar,
+            'tanggal_bayar'   => $tanggal_bayar,
+            'keterangan'      => $keterangan
+        ];
+
+        $res = $this->payroll->save_siswa_ekstra($data_save, $id);
+
+        if ($res) {
+            $this->session->set_flashdata('message', '<div class="alert alert-success alert-dismissible p-3 mb-4" role="alert"><i class="ti ti-check me-2"></i> Perubahan data siswa <b>' . htmlspecialchars($nama_siswa) . '</b> berhasil disimpan!<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>');
+        } else {
+            $this->session->set_flashdata('message', '<div class="alert alert-danger alert-dismissible p-3 mb-4" role="alert"><i class="ti ti-x me-2"></i> Gagal menyimpan perubahan data siswa.<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>');
+        }
+
+        redirect('gaji/ekstra?ekstra_id=' . $ekstra_id . '&bulan=' . $bulan . '&tahun=' . $tahun);
+    }
+
+    /**
+     * Hapus Cabang Ekstra
+     */
+    public function delete_ekstra($ekstra_id = null) {
+        cek_menu_access();
+
+        if ($ekstra_id) {
+            $this->payroll->delete_ekstra((int)$ekstra_id);
+            $this->session->set_flashdata('message', '<div class="alert alert-success alert-dismissible p-3 mb-4" role="alert"><i class="ti ti-check me-2"></i> Cabang ekstrakurikuler beserta data peserta terkait berhasil dihapus.<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>');
+        }
+
         redirect('gaji/ekstra');
     }
 

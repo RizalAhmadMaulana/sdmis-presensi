@@ -89,7 +89,7 @@
         <div class="card-body p-3">
           <span class="text-muted small fw-semibold d-block">Honor Ekstra Lunas</span>
           <h4 class="card-title mb-0 text-warning fw-bold mt-1">Rp <?=number_format($stats['total_ekstra'], 0, ',', '.');?></h4>
-          <small class="text-muted">SOP Poin 7</small>
+          <small class="text-muted">Iuran Siswa</small>
         </div>
       </div>
     </div>
@@ -280,22 +280,21 @@
                 </td>
               </tr>
             <?php endforeach; ?>
-          <?php } else { ?>
-            <tr>
-              <td colspan="9" class="text-center text-muted py-5">
-                <i class="ti ti-calculator fs-1 d-block mb-2 text-warning"></i>
-                Data gaji belum dikalkulasi untuk periode ini.
-                <div class="mt-3">
-                  <a href="<?=base_url('gaji/periode/hitung_otomatis/'.$periode['periode_id']);?>" class="btn btn-warning text-dark fw-bold px-4 py-2 shadow pulse-btn">
-                    <i class="ti ti-bolt me-1"></i> Klik Disini untuk HITUNG OTOMATIS DARI PRESENSI
-                  </a>
-                </div>
-              </td>
-            </tr>
           <?php } ?>
         </tbody>
       </table>
     </div>
+
+    <?php if (empty($rincian)) { ?>
+      <div class="card-body text-center py-5 border-top">
+        <i class="ti ti-calculator fs-1 d-block mb-2 text-warning"></i>
+        <h5 class="fw-bold mb-1">Data Gaji Belum Dikalkulasi</h5>
+        <p class="text-muted mb-3">Klik tombol di bawah untuk memproses dan mengevaluasi presensi biometrik seluruh guru secara otomatis.</p>
+        <a href="<?=base_url('gaji/periode/hitung_otomatis/'.$periode['periode_id']);?>" class="btn btn-warning btn-lg text-dark fw-bold px-4 shadow pulse-btn">
+          <i class="ti ti-bolt me-1 fs-4"></i> ⚡ HITUNG OTOMATIS DARI PRESENSI
+        </a>
+      </div>
+    <?php } ?>
   </div>
 </div>
 
@@ -315,7 +314,7 @@
         
         <div class="modal-body">
           <div class="alert alert-info py-2 px-3 small mb-3">
-            <i class="ti ti-info-circle me-1"></i> <strong>SOP Poin 5:</strong> Gunakan form ini untuk mencatat talangan operasional sekolah (Pak Anwar, Pak Nuki, Bunda Dewi), potongan kasbon, atau uang transport.
+            <i class="ti ti-info-circle me-1"></i> <strong>Catatan Penyesuaian:</strong> Gunakan form ini untuk mencatat talangan operasional sekolah (Pak Anwar, Pak Nuki, Bunda Dewi), potongan kasbon, atau uang transport.
           </div>
 
           <!-- Pilih Pegawai -->
@@ -342,7 +341,7 @@
             <div class="col-md-6 col-12">
               <label class="form-label fw-bold" for="adj_kategori">Kategori Penyesuaian <span class="text-danger">*</span></label>
               <select class="form-select" id="adj_kategori" name="kategori" required>
-                <option value="talangan">Talangan Operasional Sekolah (SOP 5)</option>
+                <option value="talangan">Talangan Operasional Sekolah</option>
                 <option value="kasbon">Potongan Kasbon / Pinjaman</option>
                 <option value="transport">Tunjangan Transport Luar Kota / Klaten</option>
                 <option value="kesetaraan">Insentif ANBK / TKA / Data</option>
@@ -381,6 +380,10 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+  if (typeof $.fn !== 'undefined' && typeof $.fn.dataTable !== 'undefined') {
+    $.fn.dataTable.ext.errMode = 'none';
+  }
+
   const adjButtons = document.querySelectorAll('.btn-tambah-adj');
   const modalAdjEl = document.getElementById('modalPenyesuaian');
   const bsModalAdj = new bootstrap.Modal(modalAdjEl);
