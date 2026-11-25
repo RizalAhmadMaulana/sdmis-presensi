@@ -16,8 +16,8 @@
     </span>
   </div>
 
-  <!-- Flash Message Notifikasi -->
-  <?=$this->session->flashdata('message');?>
+  <!-- Flash Toast & Modal Konfirmasi -->
+  <?php $this->load->view('module/gaji/toast_and_modal'); ?>
 
   <!-- KPI SUMMARY CARDS -->
   <div class="row g-3 mb-4">

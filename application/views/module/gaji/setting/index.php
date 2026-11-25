@@ -16,8 +16,8 @@
     </span>
   </div>
 
-  <!-- Flash Message Notifikasi -->
-  <?=$this->session->flashdata('message');?>
+  <!-- Flash Toast & Modal Konfirmasi -->
+  <?php $this->load->view('module/gaji/toast_and_modal'); ?>
 
   <div class="row">
     <!-- KOLOM KIRI: FORM PENGATURAN GLOBAL -->
@@ -285,12 +285,14 @@
                         </div>
                       </td>
                       <td class="text-center align-middle">
-                        <a href="<?=base_url('gaji/setting/delete_hari_khusus/'.$hk['id']);?>" 
-                           class="btn btn-xs btn-outline-danger p-1" 
-                           onclick="return confirm('Apakah Anda yakin ingin menghapus tanggal <?=date('d/m/Y', strtotime($hk['tanggal']));?> dari Kalender Hari Khusus?');"
-                           title="Hapus Agenda">
+                        <button type="button" 
+                                class="btn btn-sm btn-icon btn-label-danger rounded-pill btn-confirm-delete" 
+                                data-url="<?=base_url('gaji/setting/delete_hari_khusus/'.$hk['id']);?>" 
+                                data-title="Hapus Hari Khusus?" 
+                                data-text="Apakah Anda yakin ingin menghapus tanggal <b><?=date('d/m/Y', strtotime($hk['tanggal']));?></b> dari Kalender Hari Khusus?" 
+                                title="Hapus Agenda">
                           <i class="ti ti-trash"></i>
-                        </a>
+                        </button>
                       </td>
                     </tr>
                   <?php endforeach; ?>

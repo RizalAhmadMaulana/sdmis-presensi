@@ -26,17 +26,23 @@
     <div class="d-flex gap-2">
       <!-- TOMBOL SAKTI HITUNG OTOMATIS -->
       <?php if ($periode['status_periode'] !== 'final') { ?>
-        <a href="<?=base_url('gaji/periode/hitung_otomatis/'.$periode['periode_id']);?>" 
-           class="btn btn-warning btn-lg text-dark fw-bold shadow pulse-btn"
-           onclick="return confirm('⚡ Apakah Anda yakin ingin memproses HITUNG OTOMATIS seluruh riwayat presensi biometrik untuk periode ini? Seluruh bonus tier 1, tier 2, uang makan, dan ekstra lunas akan langsung dikalkulasi.');">
+        <button type="button" 
+           class="btn btn-warning btn-lg text-dark fw-bold shadow pulse-btn btn-confirm-delete"
+           data-url="<?=base_url('gaji/periode/hitung_otomatis/'.$periode['periode_id']);?>"
+           data-title="⚡ Hitung Otomatis dari Presensi?"
+           data-text="Sistem akan memproses seluruh riwayat presensi biometrik, bonus kedisiplinan 2-tier (06.48 & 06.30), uang makan, masa kerja, dan ekstra lunas untuk periode ini."
+           title="Hitung Otomatis">
           <i class="ti ti-bolt me-1 fs-4"></i> ⚡ HITUNG OTOMATIS DARI PRESENSI
-        </a>
+        </button>
 
-        <a href="<?=base_url('gaji/periode/kunci_periode/'.$periode['periode_id']);?>" 
-           class="btn btn-outline-success"
-           onclick="return confirm('Apakah Anda yakin ingin MENGUNCI periode ini sebagai FINAL? Periode yang dikunci siap dicairkan ke bank.');">
+        <button type="button" 
+           class="btn btn-outline-success btn-confirm-delete"
+           data-url="<?=base_url('gaji/periode/kunci_periode/'.$periode['periode_id']);?>"
+           data-title="Kunci Periode Sebagai Final?"
+           data-text="Apakah Anda yakin ingin MENGUNCI periode ini sebagai FINAL? Periode yang dikunci siap dicairkan ke bank."
+           title="Kunci Final">
           <i class="ti ti-lock me-1"></i> Kunci Final
-        </a>
+        </button>
       <?php } else { ?>
         <span class="badge bg-success fs-6 py-2 px-3">
           <i class="ti ti-circle-check me-1"></i> Penggajian Selesai & Terkunci
@@ -45,8 +51,8 @@
     </div>
   </div>
 
-  <!-- Flash Message Notifikasi -->
-  <?=$this->session->flashdata('message');?>
+  <!-- Flash Toast & Modal Konfirmasi -->
+  <?php $this->load->view('module/gaji/toast_and_modal'); ?>
 
   <!-- KPI SUMMARY METRICS PERIODE -->
   <div class="row g-3 mb-4">
@@ -240,12 +246,14 @@
                           <?=htmlspecialchars($pny['keterangan']);?>: <b>Rp <?=number_format($pny['nominal'], 0, ',', '.');?></b>
                         </span>
                         <?php if ($periode['status_periode'] !== 'final') { ?>
-                          <a href="<?=base_url('gaji/periode/delete_penyesuaian/'.$pny['id'].'/'.$periode['periode_id']);?>" 
-                             class="text-danger ms-1" 
-                             onclick="return confirm('Hapus penyesuaian ini?');" 
-                             title="Hapus">
+                          <button type="button" 
+                                  class="btn btn-xs p-0 text-danger ms-1 border-0 bg-transparent btn-confirm-delete" 
+                                  data-url="<?=base_url('gaji/periode/delete_penyesuaian/'.$pny['id'].'/'.$periode['periode_id']);?>" 
+                                  data-title="Hapus Penyesuaian?" 
+                                  data-text="Hapus penyesuaian <b><?=htmlspecialchars($pny['keterangan']);?></b>?" 
+                                  title="Hapus">
                             <i class="ti ti-x" style="font-size: 12px;"></i>
-                          </a>
+                          </button>
                         <?php } ?>
                       </div>
                     <?php endforeach; ?>

@@ -1278,6 +1278,46 @@ Membangun antarmuka siklus penggajian bulanan dengan fitur **Tombol Sakti ⚡ "H
 7. `sdmis/application/views/module/gaji/karyawan/index.php`:
    - Mengaktifkan `$.fn.dataTable.ext.errMode = 'none';`.
 
+---
+
+## 🎨 Pembaruan Sistem Notifikasi Floating Toast, Konfirmasi Hapus Interaktif & Redesain Master Ekstra
+**Tanggal:** 25 November 2026  
+**Status:** Berhasil Diimplementasikan  
+
+### A. Rincian Masalah yang Diselesaikan:
+1. **Notifikasi Alert Bleeding / Tertinggal di Semua Halaman**:
+   - *Masalah*: Alert berwarna hijau seperti `"Cabang ekstrakurikuler beserta data peserta terkait berhasil dihapus."` terus menempel dan tetap muncul ketika pengguna berpindah ke submenu lain (seperti `gaji/setting`). Selain itu, alert bersifat statis dan mendorong tata letak halaman ke bawah.
+   - *Solusi*: 
+     - Dibuatkan komponen khusus [toast_and_modal.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/views/module/gaji/toast_and_modal.php) yang mengadopsi model **Floating Toast Pill** (desain kapsul hitam mengapung di atas layar dengan ikon centang hijau, teks putih tebal, dan bayangan lembut).
+     - Toast muncul meluncur dari atas selama **3.2 detik**, kemudian meluncur ke atas dan menghilang secara otomatis tanpa menggeser tata letak konten.
+     - Di level PHP, session flashdata `message` dan `gaji_toast` **langsung di-unset saat pertama kali dirender**, sehingga pesan dijamin 100% tidak akan pernah muncul kembali saat refresh atau berpindah ke halaman lain.
+2. **Peniadaan Dialog Konfirmasi Browser (`localhost says`)**:
+   - *Masalah*: Saat pengguna menekan tombol hapus cabang ekstra, muncul pop-up browser bawaan bertuliskan `localhost says`.
+   - *Solusi*: Seluruh aksi hapus (Cabang Ekstra, Peserta Siswa, Hari Khusus, Penyesuaian Gaji) kini menggunakan modal konfirmasi interaktif `#modalConfirmDeleteGaji` dengan avatar ikon sampah merah, judul tebal, deskripsi peringatan yang jelas, tombol Batal, dan tombol Ya Hapus.
+3. **Redesain Total Modal Master Cabang Ekstra (2-Column Grid & Tombol Horizontal)**:
+   - *Masalah*: Kolom Aksi pada tabel master cabang ekstra sempit (`style="width: 80px;"`) sehingga tombol Edit dan Hapus menumpuk secara vertikal dan terlihat tidak rapi. Form dan tabel dalam modal juga terasa sesak.
+   - *Solusi*:
+     - Modal diperbesar menjadi `modal-xl` dengan layout **2-Kolom**:
+       - **Kolom Kiri (col-lg-5)**: Form Tambah / Update Cabang Ekstra dengan border dinamis (`border-primary` saat tambah, `border-warning` saat edit), input group dengan ikon, dan tombol simpan berukuran penuh.
+       - **Kolom Kanan (col-lg-7)**: Tabel daftar cabang ekstra aktif berdesain bersih dengan header sticky, badge tipe honor, tarif rupiah terformat, dan kolom Aksi dengan lebar `100px`.
+     - Tombol Edit dan Hapus ditata bersisian secara horizontal (`d-inline-flex gap-1`) menggunakan style Tabler `btn-label-primary` dan `btn-label-danger` berbentuk bulat (`rounded-pill`) yang rapi dan elegan.
+4. **Penyempurnaan Seluruh Sub-menu Modul Penggajian**:
+   - Menghubungkan komponen `toast_and_modal.php` ke seluruh view:
+     - `views/module/gaji/setting/index.php`
+     - `views/module/gaji/karyawan/index.php`
+     - `views/module/gaji/ekstra/index.php`
+     - `views/module/gaji/periode/index.php`
+     - `views/module/gaji/periode/detail.php`
+   - Mengganti seluruh `onclick="return confirm(...)"` pada tombol eksekusi (Hitung Otomatis, Kunci Final, Hapus) menjadi tombol yang terintegrasi ke modal konfirmasi interaktif.
+
+### B. Daftar File yang Ditambahkan & Dimodifikasi:
+1. `sdmis/application/views/module/gaji/toast_and_modal.php` (**File Baru**): Komponen terpadu Toast Notification auto-dismiss 3.2 detik dan Modal Konfirmasi Hapus Interaktif.
+2. `sdmis/application/views/module/gaji/ekstra/index.php` (**Dimodifikasi**): Redesain total `#modalMasterEkstra` 2-kolom, perapihan tombol aksi horizontal checklist siswa, dan integrasi modal konfirmasi hapus.
+3. `sdmis/application/views/module/gaji/setting/index.php` (**Dimodifikasi**): Penggantian alert statis dengan floating toast, dan penggantian confirm delete hari khusus dengan modal interaktif.
+4. `sdmis/application/views/module/gaji/karyawan/index.php` (**Dimodifikasi**): Penggantian alert statis dengan floating toast.
+5. `sdmis/application/views/module/gaji/periode/index.php` (**Dimodifikasi**): Penggantian alert statis dengan floating toast.
+6. `sdmis/application/views/module/gaji/periode/detail.php` (**Dimodifikasi**): Penggantian alert statis dengan floating toast, serta modernisasi tombol Hitung Otomatis, Kunci Final, dan Hapus Penyesuaian menggunakan modal konfirmasi interaktif.
+
 
 
 

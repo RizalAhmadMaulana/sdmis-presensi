@@ -387,6 +387,34 @@ Karena struktur tabel `m_gaji_setting_global` dan `m_gaji_hari_khusus` sudah dib
    - Pastikan badge teks `"SOP Poin 7 & 8"` pada bagian atas tabel sudah **bersih/hilang**.
 3. Pastikan pesan `"Telah keluar."` tidak lagi muncul di halaman manapun setelah proses login.
 
+---
+
+## 🎨 Panduan Pengujian Floating Toast & Modal Konfirmasi Interaktif
+
+### A. Pengujian Floating Toast Notification:
+1. Buka `http://localhost/mis_dev/sdmis/gaji/ekstra`.
+2. Klik tombol **Tambah Peserta Siswa** dan simpan siswa baru, atau klik toggle pelunasan, atau hapus data.
+3. Perhatikan di bagian atas layar tengah:
+   - Akan muncul **Floating Toast Pill** berwarna gelap dengan ikon centang hijau dan teks putih rapi (contoh: *"Data siswa ... berhasil disimpan!"*).
+   - Toast akan tampil selama **3.2 detik**, kemudian meluncur ke atas dan menghilang secara otomatis.
+   - Pindah ke menu **Pengaturan Aturan & Tarif** (`gaji/setting`) atau menu lainnya: **pesan tersebut dipastikan TIDAK AKAN PERNAH muncul di menu lain!**
+
+### B. Pengujian Konfirmasi Hapus Interaktif (Tanpa Dialog Browser):
+1. Buka tombol **Master Cabang Ekstra**.
+2. Klik tombol **Hapus** (ikon tong sampah merah) pada salah satu cabang:
+   - Perhatikan bahwa **tidak ada lagi dialog browser bertuliskan `localhost says`**.
+   - Sebagai gantinya, muncul **Modal Konfirmasi Interaktif** yang elegan dengan ikon tong sampah merah di tengah, teks konfirmasi yang jelas, tombol **Batal**, dan tombol **Ya, Hapus**.
+   - Klik **Ya, Hapus** untuk mengeksekusi penghapusan.
+
+### C. Pengujian Tampilan Baru Master Cabang Ekstra:
+1. Klik tombol **Master Cabang Ekstra**.
+2. Periksa tampilan modal 2-kolom:
+   - Sisi kiri: Form input yang rapi dengan indikator border aktif.
+   - Sisi kanan: Tabel daftar cabang aktif dengan kolom AKSI yang rapi (tombol Edit dan Hapus berjajar horizontal tanpa tumpang tindih).
+3. Klik tombol **Edit** pada salah satu baris:
+   - Form sisi kiri otomatis berubah warna menjadi kuning/oranye (`border-warning`), judul form berubah menjadi *"Edit: [Nama Cabang]"*, dan tombol *"Batal Edit"* muncul.
+   - Klik *"Batal Edit"* untuk mereset form kembali ke mode Tambah.
+
 
 
 

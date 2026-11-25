@@ -16,8 +16,8 @@
     </button>
   </div>
 
-  <!-- Flash Message Notifikasi -->
-  <?=$this->session->flashdata('message');?>
+  <!-- Flash Toast & Modal Konfirmasi -->
+  <?php $this->load->view('module/gaji/toast_and_modal'); ?>
 
   <!-- TABEL DAFTAR PERIODE PENGGAJIAN -->
   <div class="card shadow-sm">
