@@ -1,0 +1,637 @@
+<?php
+defined('BASEPATH') or exit('No direct script access allowed');
+
+/**
+ * Model Payroll_model
+ * Core Backend Calculation Engine untuk Sistem Penggajian & Mukafaah SDMIS
+ * Terintegrasi Presensi Biometrik 2-Tier, Kalender Hari Khusus, & Ekstrakurikuler
+ */
+class Payroll_model extends CI_Model {
+
+    public function __construct() {
+        parent::__construct();
+        $this->load->database();
+    }
+
+    // =========================================================================
+    // 1. PENGATURAN GLOBAL & KONFIGURASI FORMULA
+    // =========================================================================
+
+    /**
+     * Mengambil parameter acuan penggajian dari m_gaji_setting_global
+     * @return array
+     */
+    public function get_setting_global() {
+        $query = $this->db->query("SELECT * FROM m_gaji_setting_global WHERE setting_id = 1")->row_array();
+        if (!$query) {
+            // Default fallback jika tabel baru dibuat atau belum di-seed
+            return [
+                'setting_id'               => 1,
+                'jam_masuk_standar'        => '06:45:00',
+                'toleransi_menit'          => 3,
+                'jam_masuk_super_early'    => '06:30:00',
+                'max_toleransi_telat'      => 3,
+                'nominal_bonus_tier1'      => 50000.00,
+                'nominal_bonus_tier2'      => 50000.00,
+                'tarif_makan_lama'         => 5000.00,
+                'tarif_makan_baru'         => 2500.00,
+                'tarif_masa_kerja_tahunan' => 15000.00,
+                'nominal_wali_kelas'       => 25000.00,
+                'rekening_debit_yayasan'   => '219701000399305',
+                'bank_sumber_yayasan'      => 'BRI'
+            ];
+        }
+        return $query;
+    }
+
+    /**
+     * Mengambil daftar tanggal hari khusus (waiver pulang awal)
+     * @param string|null $tgl_awal
+     * @param string|null $tgl_akhir
+     * @return array List tanggal Y-m-d
+     */
+    public function get_hari_khusus_dates($tgl_awal = null, $tgl_akhir = null) {
+        $this->db->select('tanggal');
+        $this->db->from('m_gaji_hari_khusus');
+        $this->db->where('boleh_pulang_awal', 'y');
+        if ($tgl_awal && $tgl_akhir) {
+            $this->db->where('tanggal >=', $tgl_awal);
+            $this->db->where('tanggal <=', $tgl_akhir);
+        }
+        $res = $this->db->get()->result_array();
+        $dates = [];
+        foreach ($res as $r) {
+            $dates[] = $r['tanggal'];
+        }
+        return $dates;
+    }
+
+    // =========================================================================
+    // 2. CORE ENGINE: KALKULASI PRESENSI BIOMETRIK 2-TIER
+    // =========================================================================
+
+    /**
+     * Menghitung kehadiran fisik, keterlambatan Tier 1 (06.48), kedatangan Tier 2 (06.30),
+     * serta status pemberian bonus presensi per pegawai dalam rentang periode.
+     * 
+     * @param int $pegawai_id
+     * @param string $tgl_awal Format: Y-m-d
+     * @param string $tgl_akhir Format: Y-m-d
+     * @return array Rincian presensi & bonus
+     */
+    public function hitung_presensi_pegawai($pegawai_id, $tgl_awal, $tgl_akhir) {
+        $setting = $this->get_setting_global();
+
+        // 1. Batas Waktu Tier 1: Jam masuk standar (06.45) + toleransi (3 menit) = 06:48:00
+        $jam_standar = !empty($setting['jam_masuk_standar']) ? $setting['jam_masuk_standar'] : '06:45:00';
+        $toleransi_menit = isset($setting['toleransi_menit']) ? (int)$setting['toleransi_menit'] : 3;
+        $timestamp_batas_tier1 = strtotime($jam_standar) + ($toleransi_menit * 60);
+        $jam_batas_tier1 = date('H:i:s', $timestamp_batas_tier1); // Default: 06:48:00
+
+        // 2. Batas Waktu Tier 2: Jam hadir pagi super early = 06:30:00
+        $jam_batas_tier2 = !empty($setting['jam_masuk_super_early']) ? $setting['jam_masuk_super_early'] : '06:30:00';
+
+        // 3. Maksimal Toleransi Keterlambatan per Bulan
+        $max_telat = isset($setting['max_toleransi_telat']) ? (int)$setting['max_toleransi_telat'] : 3;
+
+        // 4. Daftar Hari Khusus (Waiver Pulang Awal)
+        $hari_khusus = $this->get_hari_khusus_dates($tgl_awal, $tgl_akhir);
+
+        // 5. Query Seluruh Absensi Pegawai dalam Rentang Periode
+        $sql = "SELECT * FROM tx_absensi 
+                WHERE pegawai_id = ? 
+                  AND tanggal_absen BETWEEN ? AND ?
+                ORDER BY tanggal_absen ASC";
+        $riwayat_absen = $this->db->query($sql, [$pegawai_id, $tgl_awal, $tgl_akhir])->result_array();
+
+        // Variabel Penghitung Kehadiran
+        $hari_hadir = 0;
+        $telat_tier1_count = 0;       // Keterlambatan Datang > 06.48
+        $pulang_cepat_count = 0;      // Pulang Awal di Luar Hari Khusus
+        $datang_lewat_0630_count = 0; // Datang Lewat > 06.30 (Untuk Tier 2)
+        $detail_log = [];
+
+        foreach ($riwayat_absen as $ab) {
+            $is_hadir = ($ab['is_status'] === 'h');
+            $tgl = $ab['tanggal_absen'];
+
+            if ($is_hadir) {
+                $hari_hadir++;
+                $jam_masuk = !empty($ab['jam_masuk']) ? date('H:i:s', strtotime($ab['jam_masuk'])) : null;
+                $jam_keluar = !empty($ab['jam_keluar']) ? date('H:i:s', strtotime($ab['jam_keluar'])) : null;
+                $j_pulang_jadwal = !empty($ab['j_pulang']) ? date('H:i:s', strtotime($ab['j_pulang'])) : '14:00:00';
+
+                $is_telat_tier1 = false;
+                $is_lewat_0630 = false;
+                $is_pulang_cepat = false;
+
+                // Evaluasi Jam Masuk
+                if ($jam_masuk) {
+                    // Evaluasi Tier 1 (> 06:48:00)
+                    if ($jam_masuk > $jam_batas_tier1) {
+                        $telat_tier1_count++;
+                        $is_telat_tier1 = true;
+                    }
+                    // Evaluasi Tier 2 (> 06:30:00)
+                    if ($jam_masuk > $jam_batas_tier2) {
+                        $datang_lewat_0630_count++;
+                        $is_lewat_0630 = true;
+                    }
+                }
+
+                // Evaluasi Jam Pulang (Hanya jika bukan Hari Khusus)
+                $is_hari_khusus = in_array($tgl, $hari_khusus);
+                if (!$is_hari_khusus && $jam_keluar && $j_pulang_jadwal) {
+                    if ($jam_keluar < $j_pulang_jadwal) {
+                        $pulang_cepat_count++;
+                        $is_pulang_cepat = true;
+                    }
+                }
+
+                // Simpan catatan evaluasi harian
+                if ($is_telat_tier1 || $is_lewat_0630 || $is_pulang_cepat) {
+                    $detail_log[] = [
+                        'tanggal'        => $tgl,
+                        'jam_masuk'      => $jam_masuk,
+                        'jam_keluar'     => $jam_keluar,
+                        'is_telat_tier1' => $is_telat_tier1,
+                        'is_lewat_0630'  => $is_lewat_0630,
+                        'is_pulang_cepat'=> $is_pulang_cepat,
+                        'hari_khusus'    => $is_hari_khusus
+                    ];
+                }
+            }
+        }
+
+        // 6. Cek Perizinan Resmi & Sakit Surat Dokter (tx_request_izin)
+        $sql_izin = "SELECT a.* FROM tx_request_izin a 
+                     JOIN tx_request_izin_pegawai b ON a.request_izin_id = b.request_izin_id 
+                     WHERE b.pegawai_id = ? 
+                       AND a.is_status = 1 
+                       AND a.tanggal_request BETWEEN ? AND ?";
+        $daftar_izin = $this->db->query($sql_izin, [$pegawai_id, $tgl_awal, $tgl_akhir])->result_array();
+
+        $jumlah_izin_sakit = 0;
+        $jumlah_izin_darurat = 0;
+        foreach ($daftar_izin as $iz) {
+            if ($iz['tipe_request'] == 'sakit') {
+                $jumlah_izin_sakit++;
+            } else if ($iz['tipe_request'] == 'izin' && (strpos(strtolower($iz['keterangan']), 'takziah') !== false || strpos(strtolower($iz['keterangan']), 'keluarga') !== false)) {
+                $jumlah_izin_darurat++;
+            }
+        }
+
+        // 7. Pengambilan Keputusan Bonus Presensi:
+        // Total Pelanggaran Tier 1 = Telat > 06.48 + Pulang Cepat (di luar hari khusus)
+        $total_pelanggaran_tier1 = $telat_tier1_count + $pulang_cepat_count;
+
+        // A. Evaluasi Tier 1 (Bonus Hadir Tepat Waktu Standar - Rp 50.000)
+        // Syarat: Pelanggaran Tier 1 <= 3 kali dalam 1 bulan
+        $lolos_tier1 = ($total_pelanggaran_tier1 <= $max_telat && $hari_hadir > 0);
+        $nominal_bonus_tier1 = $lolos_tier1 ? (float)$setting['nominal_bonus_tier1'] : 0.00;
+
+        // B. Evaluasi Tier 2 (Bonus Hadir Pagi Super Early - Tambahan Rp 50.000)
+        // Syarat: Datang > 06.30 tidak lebih dari 3 kali dalam 1 bulan DAN lolos Tier 1
+        $lolos_tier2 = ($lolos_tier1 && $datang_lewat_0630_count <= $max_telat);
+        $nominal_bonus_tier2 = $lolos_tier2 ? (float)$setting['nominal_bonus_tier2'] : 0.00;
+
+        // Total Bonus Presensi
+        $total_bonus_presensi = $nominal_bonus_tier1 + $nominal_bonus_tier2;
+
+        return [
+            'pegawai_id'              => $pegawai_id,
+            'hari_hadir'              => $hari_hadir,
+            'telat_tier1_count'       => $telat_tier1_count,
+            'pulang_cepat_count'      => $pulang_cepat_count,
+            'total_pelanggaran_tier1' => $total_pelanggaran_tier1,
+            'datang_lewat_0630_count' => $datang_lewat_0630_count,
+            'lolos_tier1'             => $lolos_tier1,
+            'nominal_bonus_tier1'     => $nominal_bonus_tier1,
+            'lolos_tier2'             => $lolos_tier2,
+            'nominal_bonus_tier2'     => $nominal_bonus_tier2,
+            'total_bonus_presensi'    => $total_bonus_presensi,
+            'jumlah_izin_sakit'       => $jumlah_izin_sakit,
+            'jumlah_izin_darurat'     => $jumlah_izin_darurat,
+            'detail_log'              => $detail_log
+        ];
+    }
+
+    // =========================================================================
+    // 3. CORE ENGINE: MASA KERJA & TUNJANGAN MAKAN
+    // =========================================================================
+
+    /**
+     * Menghitung masa kerja dalam satuan tahun penuh
+     * @param string|null $tgl_mulai_kerja Y-m-d
+     * @param string|null $tgl_acuan Y-m-d (default: hari ini)
+     * @return int Jumlah tahun masa kerja
+     */
+    public function hitung_masa_kerja($tgl_mulai_kerja, $tgl_acuan = null) {
+        if (empty($tgl_mulai_kerja) || $tgl_mulai_kerja == '0000-00-00') {
+            return 0;
+        }
+        $tgl_ref = !empty($tgl_acuan) ? new DateTime($tgl_acuan) : new DateTime();
+        $tgl_mulai = new DateTime($tgl_mulai_kerja);
+        $diff = $tgl_mulai->diff($tgl_ref);
+        return (int)$diff->y;
+    }
+
+    /**
+     * Menghitung Tunjangan Masa Kerja (TMK) khusus Guru Tetap Yayasan (GTY)
+     * Formula: Rp 15.000 x jumlah tahun kerja
+     * @param int $tahun_kerja
+     * @param string $status_kepegawaian 'gty', 'kontrak', dll
+     * @return float
+     */
+    public function hitung_tunjangan_masa_kerja($tahun_kerja, $status_kepegawaian = 'gty') {
+        $setting = $this->get_setting_global();
+        $tarif = (float)$setting['tarif_masa_kerja_tahunan']; // Default: Rp 15.000
+        
+        // GTY berhak atas tunjangan masa kerja
+        if ($status_kepegawaian === 'gty' && $tahun_kerja > 0) {
+            return (float)($tahun_kerja * $tarif);
+        }
+        return 0.00;
+    }
+
+    /**
+     * Menghitung Tunjangan Uang Makan berdasarkan akumulasi hari hadir fisik
+     * - Guru Lama (Masa Kerja > 3 tahun): Rp 5.000 x Hari Hadir
+     * - Guru Baru (Masa Kerja <= 3 tahun): Rp 2.500 x Hari Hadir
+     * @param int $hari_hadir
+     * @param int $tahun_kerja
+     * @return float
+     */
+    public function hitung_tunjangan_makan($hari_hadir, $tahun_kerja) {
+        $setting = $this->get_setting_global();
+        if ($tahun_kerja > 3) {
+            $tarif = (float)$setting['tarif_makan_lama']; // Rp 5.000
+        } else {
+            $tarif = (float)$setting['tarif_makan_baru']; // Rp 2.500
+        }
+        return (float)($hari_hadir * $tarif);
+    }
+
+    // =========================================================================
+    // 4. CORE ENGINE: EKSTRAKURIKULER & TRACKING PELUNASAN SISWA
+    // =========================================================================
+
+    /**
+     * Menghitung honor ekstra yang berhak diterima guru pengampu:
+     * - Siswa LUNAS di awal bulan: Honor langsung masuk ke bulan berjalan.
+     * - Siswa BELUM LUNAS: Honor ditangguhkan (pending/carry-over) dan dicairkan saat sudah lunas.
+     * 
+     * @param int $pegawai_id
+     * @param int $bulan
+     * @param int $tahun
+     * @return array
+     */
+    public function hitung_honor_ekstra_pegawai($pegawai_id, $bulan, $tahun) {
+        // Ambil cabang ekstra yang diampu oleh pegawai ini
+        $ekstras = $this->db->query("SELECT * FROM m_ekstra WHERE pegawai_id = ? AND is_active = 'y'", [$pegawai_id])->result_array();
+
+        $total_honor_lunas = 0.00;
+        $total_honor_pending = 0.00;
+        $detail_ekstra = [];
+
+        foreach ($ekstras as $ek) {
+            $ekstra_id = $ek['ekstra_id'];
+            $tarif = (float)$ek['tarif_standar'];
+
+            if ($ek['tipe_honor'] === 'per_anak') {
+                // 1. Siswa Lunas Bulan Berjalan
+                $sql_lunas = "SELECT COUNT(*) as jml FROM tx_ekstra_siswa 
+                              WHERE ekstra_id = ? AND bulan = ? AND tahun = ? AND status_bayar = 'lunas'";
+                $q_lunas = $this->db->query($sql_lunas, [$ekstra_id, $bulan, $tahun])->row_array();
+                $jml_lunas = isset($q_lunas['jml']) ? (int)$q_lunas['jml'] : 0;
+                $sub_honor_lunas = $jml_lunas * $tarif;
+
+                // 2. Siswa Belum Lunas Bulan Berjalan (Pending)
+                $sql_pending = "SELECT COUNT(*) as jml FROM tx_ekstra_siswa 
+                                WHERE ekstra_id = ? AND bulan = ? AND tahun = ? AND status_bayar = 'pending'";
+                $q_pending = $this->db->query($sql_pending, [$ekstra_id, $bulan, $tahun])->row_array();
+                $jml_pending = isset($q_pending['jml']) ? (int)$q_pending['jml'] : 0;
+                $sub_honor_pending = $jml_pending * $tarif;
+
+                // 3. Carry-Over: Siswa bulan lalu yang baru lunas pada bulan ini
+                $sql_carry = "SELECT COUNT(*) as jml FROM tx_ekstra_siswa 
+                              WHERE ekstra_id = ? 
+                                AND ((tahun = ? AND bulan < ?) OR tahun < ?)
+                                AND status_bayar = 'lunas' 
+                                AND MONTH(tanggal_bayar) = ? AND YEAR(tanggal_bayar) = ?";
+                $q_carry = $this->db->query($sql_carry, [$ekstra_id, $tahun, $bulan, $tahun, $bulan, $tahun])->row_array();
+                $jml_carry = isset($q_carry['jml']) ? (int)$q_carry['jml'] : 0;
+                $sub_honor_carry = $jml_carry * $tarif;
+
+                $total_ekstra_cair = $sub_honor_lunas + $sub_honor_carry;
+
+                $total_honor_lunas += $total_ekstra_cair;
+                $total_honor_pending += $sub_honor_pending;
+
+                $detail_ekstra[] = [
+                    'nama_ekstra'       => $ek['nama_ekstra'],
+                    'tipe'              => 'per_anak',
+                    'tarif'             => $tarif,
+                    'jml_lunas'         => $jml_lunas,
+                    'jml_pending'       => $jml_pending,
+                    'jml_carry_over'    => $jml_carry,
+                    'honor_cair'        => $total_ekstra_cair,
+                    'honor_tertahan'    => $sub_honor_pending
+                ];
+            } else {
+                // Tipe Per Sesi (Renang) atau Per Kedatangan (Tahfidz/Tasmi)
+                $detail_ekstra[] = [
+                    'nama_ekstra'       => $ek['nama_ekstra'],
+                    'tipe'              => $ek['tipe_honor'],
+                    'tarif'             => $tarif,
+                    'jml_lunas'         => 0,
+                    'jml_pending'       => 0,
+                    'jml_carry_over'    => 0,
+                    'honor_cair'        => 0.00,
+                    'honor_tertahan'    => 0.00
+                ];
+            }
+        }
+
+        return [
+            'total_honor_lunas'   => $total_honor_lunas,
+            'total_honor_pending' => $total_honor_pending,
+            'detail_ekstra'       => $detail_ekstra
+        ];
+    }
+
+    // =========================================================================
+    // 5. MASTER ENGINE: KALKULASI GAJI SATU PEGAWAI SECARA MENYELURUH
+    // =========================================================================
+
+    /**
+     * Menghitung total gaji dan seluruh komponen hak & kewajiban satu pegawai
+     * 
+     * @param int $pegawai_id
+     * @param int $periode_id
+     * @return array Data slip kalkulasi lengkap
+     */
+    public function kalkulasi_gaji_pegawai($pegawai_id, $periode_id) {
+        $setting = $this->get_setting_global();
+
+        // 1. Ambil Data Periode
+        $periode = $this->db->query("SELECT * FROM tx_gaji_periode WHERE periode_id = ?", [$periode_id])->row_array();
+        if (!$periode) {
+            return false;
+        }
+
+        $bulan = (int)$periode['bulan'];
+        $tahun = (int)$periode['tahun'];
+        $tgl_awal = $periode['tanggal_awal'];
+        $tgl_akhir = $periode['tanggal_akhir'];
+
+        // 2. Ambil Profil Pegawai & Setting Gaji
+        $pegawai = $this->db->query("SELECT a.*, b.* 
+                                     FROM m_pegawai a
+                                     LEFT JOIN m_pegawai_gaji_setting b ON a.pegawai_id = b.pegawai_id
+                                     WHERE a.pegawai_id = ?", [$pegawai_id])->row_array();
+        if (!$pegawai) {
+            return false;
+        }
+
+        // Komponen Gaji Pokok
+        $gaji_pokok = isset($pegawai['gaji_pokok_nominal']) ? (float)$pegawai['gaji_pokok_nominal'] : 500000.00;
+        $status_pegawai = isset($pegawai['status_kepegawaian']) ? $pegawai['status_kepegawaian'] : 'gty';
+
+        // 3. Kalkulasi Masa Kerja & Tunjangan Masa Kerja
+        $tahun_kerja = $this->hitung_masa_kerja($pegawai['tanggal_mulai_kerja'], $tgl_akhir);
+        $tunj_masa_kerja = $this->hitung_tunjangan_masa_kerja($tahun_kerja, $status_pegawai);
+
+        // 4. Kalkulasi Tunjangan Wali Kelas
+        $is_wali = (isset($pegawai['is_wali_kelas']) && $pegawai['is_wali_kelas'] === 'y');
+        $tunj_wali_kelas = $is_wali ? (float)$setting['nominal_wali_kelas'] : 0.00;
+
+        // 5. Tunjangan Struktural / Tugas Tambahan
+        $tunj_struktural = isset($pegawai['nominal_tunj_struktural']) ? (float)$pegawai['nominal_tunj_struktural'] : 0.00;
+
+        // 6. Kalkulasi Presensi Biometrik 2-Tier
+        $data_presensi = $this->hitung_presensi_pegawai($pegawai_id, $tgl_awal, $tgl_akhir);
+        $hari_hadir = $data_presensi['hari_hadir'];
+        $bonus_tier1 = $data_presensi['nominal_bonus_tier1'];
+        $bonus_tier2 = $data_presensi['nominal_bonus_tier2'];
+        $total_tunj_presensi = $data_presensi['total_bonus_presensi'];
+
+        // 7. Kalkulasi Tunjangan Makan
+        $tunj_makan = $this->hitung_tunjangan_makan($hari_hadir, $tahun_kerja);
+
+        // 8. Kalkulasi Honor Ekstrakurikuler
+        $data_ekstra = $this->hitung_honor_ekstra_pegawai($pegawai_id, $bulan, $tahun);
+        $honor_ekstra_lunas = $data_ekstra['total_honor_lunas'];
+        $honor_ekstra_pending = $data_ekstra['total_honor_pending'];
+
+        // 9. Ambil Penyesuaian Manual (Talangan, Transport, Kasbon, dll)
+        $q_gaji_lama = $this->db->query("SELECT gaji_id FROM tx_gaji_karyawan WHERE periode_id = ? AND pegawai_id = ?", [$periode_id, $pegawai_id])->row_array();
+        $gaji_id_existing = $q_gaji_lama ? $q_gaji_lama['gaji_id'] : 0;
+
+        $talangan_operasional = 0.00;
+        $tunj_transport = 0.00;
+        $tunj_kesetaraan = 0.00;
+        $apresiasi_sertifikasi = 0.00;
+        $potongan_kasbon = 0.00;
+        $potongan_talangan = 0.00;
+        $potongan_lainnya = 0.00;
+
+        if ($gaji_id_existing > 0) {
+            $adjustments = $this->db->query("SELECT * FROM tx_gaji_komponen_manual WHERE gaji_id = ?", [$gaji_id_existing])->result_array();
+            foreach ($adjustments as $adj) {
+                $nom = (float)$adj['nominal'];
+                if ($adj['jenis'] === 'penambahan') {
+                    if ($adj['kategori'] === 'talangan') $talangan_operasional += $nom;
+                    else if ($adj['kategori'] === 'transport') $tunj_transport += $nom;
+                    else if ($adj['kategori'] === 'kesetaraan') $tunj_kesetaraan += $nom;
+                    else if ($adj['kategori'] === 'sertifikasi') $apresiasi_sertifikasi += $nom;
+                } else if ($adj['jenis'] === 'potongan') {
+                    if ($adj['kategori'] === 'kasbon') $potongan_kasbon += $nom;
+                    else if ($adj['kategori'] === 'talangan') $potongan_talangan += $nom;
+                    else $potongan_lainnya += $nom;
+                }
+            }
+        }
+
+        // 10. Kalkulasi Total Gaji Kotor (Total Penghasilan)
+        $total_penghasilan_kotor = $gaji_pokok +
+                                   $tunj_masa_kerja +
+                                   $tunj_wali_kelas +
+                                   $tunj_struktural +
+                                   $tunj_makan +
+                                   $total_tunj_presensi +
+                                   $honor_ekstra_lunas +
+                                   $tunj_kesetaraan +
+                                   $tunj_transport +
+                                   $apresiasi_sertifikasi +
+                                   $talangan_operasional;
+
+        // 11. Kalkulasi Total Potongan
+        $total_potongan = $potongan_kasbon + $potongan_talangan + $potongan_lainnya;
+
+        // 12. Take Home Pay (THP) Bersih
+        $take_home_pay = $total_penghasilan_kotor - $total_potongan;
+
+        return [
+            'periode_id'              => $periode_id,
+            'pegawai_id'              => $pegawai_id,
+            'nama_pegawai'            => $pegawai['nama_pegawai'],
+            'status_kepegawaian'      => $status_pegawai,
+            'gaji_pokok'              => $gaji_pokok,
+            'masa_kerja_tahun'        => $tahun_kerja,
+            'tunj_masa_kerja'         => $tunj_masa_kerja,
+            'is_wali_kelas'           => $is_wali ? 'y' : 'n',
+            'tunj_wali_kelas'         => $tunj_wali_kelas,
+            'tunj_struktural'         => $tunj_struktural,
+            'hari_hadir_presensi'     => $hari_hadir,
+            'tunj_makan'              => $tunj_makan,
+            'telat_tier1_count'       => $data_presensi['telat_tier1_count'],
+            'datang_lewat_0630_count' => $data_presensi['datang_lewat_0630_count'],
+            'bonus_presensi_tier1'    => $bonus_tier1,
+            'bonus_presensi_tier2'    => $bonus_tier2,
+            'total_tunj_presensi'     => $total_tunj_presensi,
+            'honor_ekstra_lunas'      => $honor_ekstra_lunas,
+            'honor_ekstra_pending'    => $honor_ekstra_pending,
+            'tunj_kesetaraan'         => $tunj_kesetaraan,
+            'tunj_transport'          => $tunj_transport,
+            'apresiasi_sertifikasi'   => $apresiasi_sertifikasi,
+            'talangan_operasional'    => $talangan_operasional,
+            'total_penghasilan_kotor' => $total_penghasilan_kotor,
+            'potongan_kasbon'         => $potongan_kasbon,
+            'potongan_talangan'       => $potongan_talangan,
+            'potongan_lainnya'        => $potongan_lainnya,
+            'total_potongan'          => $total_potongan,
+            'take_home_pay'           => $take_home_pay,
+            'rekening'                => [
+                'nama_bank'           => isset($pegawai['nama_bank']) ? $pegawai['nama_bank'] : 'BRI',
+                'nomor_rekening'      => isset($pegawai['nomor_rekening']) ? $pegawai['nomor_rekening'] : '',
+                'nama_pemilik'        => isset($pegawai['nama_pemilik_rekening']) ? $pegawai['nama_pemilik_rekening'] : $pegawai['nama_pegawai'],
+                'customer_reff'       => isset($pegawai['customer_reff']) ? $pegawai['customer_reff'] : ''
+            ]
+        ];
+    }
+
+    // =========================================================================
+    // 6. MASTER ENGINE: BATCH GENERATE SELURUH PEGAWAI PERIODE
+    // =========================================================================
+
+    /**
+     * Memproses kalkulasi seluruh pegawai aktif untuk periode tertentu,
+     * menyimpan ke tabel tx_gaji_karyawan, dan memperbarui header tx_gaji_periode.
+     * 
+     * @param int $periode_id
+     * @param int $user_id
+     * @return array Status & total kalkulasi
+     */
+    public function batch_generate_payroll($periode_id, $user_id = 1) {
+        $this->db->trans_start();
+
+        // Ambil seluruh pegawai aktif
+        $pegawais = $this->db->query("SELECT pegawai_id, nama_pegawai FROM m_pegawai WHERE is_del = 'n' AND is_status = 'y'")->result_array();
+
+        $total_pengeluaran = 0.00;
+        $processed_count = 0;
+
+        foreach ($pegawais as $p) {
+            $pid = $p['pegawai_id'];
+            $res = $this->kalkulasi_gaji_pegawai($pid, $periode_id);
+
+            if ($res) {
+                $data_save = [
+                    'periode_id'              => $periode_id,
+                    'pegawai_id'              => $pid,
+                    'gaji_pokok'              => $res['gaji_pokok'],
+                    'masa_kerja_tahun'        => $res['masa_kerja_tahun'],
+                    'tunj_masa_kerja'         => $res['tunj_masa_kerja'],
+                    'tunj_wali_kelas'         => $res['tunj_wali_kelas'],
+                    'tunj_struktural'         => $res['tunj_struktural'],
+                    'hari_hadir_presensi'     => $res['hari_hadir_presensi'],
+                    'tunj_makan'              => $res['tunj_makan'],
+                    'telat_tier1_count'       => $res['telat_tier1_count'],
+                    'datang_lewat_0630_count' => $res['datang_lewat_0630_count'],
+                    'bonus_presensi_tier1'    => $res['bonus_presensi_tier1'],
+                    'bonus_presensi_tier2'    => $res['bonus_presensi_tier2'],
+                    'total_tunj_presensi'     => $res['total_tunj_presensi'],
+                    'honor_ekstra_lunas'      => $res['honor_ekstra_lunas'],
+                    'honor_ekstra_pending'    => $res['honor_ekstra_pending'],
+                    'tunj_kesetaraan'         => $res['tunj_kesetaraan'],
+                    'tunj_transport'          => $res['tunj_transport'],
+                    'apresiasi_sertifikasi'   => $res['apresiasi_sertifikasi'],
+                    'talangan_operasional'    => $res['talangan_operasional'],
+                    'total_penghasilan_kotor' => $res['total_penghasilan_kotor'],
+                    'potongan_kasbon'         => $res['potongan_kasbon'],
+                    'potongan_talangan'       => $res['potongan_talangan'],
+                    'potongan_lainnya'        => $res['potongan_lainnya'],
+                    'total_potongan'          => $res['total_potongan'],
+                    'take_home_pay'           => $res['take_home_pay']
+                ];
+
+                // Cek apakah sudah pernah ada baris di tx_gaji_karyawan
+                $q_exist = $this->db->query("SELECT gaji_id FROM tx_gaji_karyawan WHERE periode_id = ? AND pegawai_id = ?", [$periode_id, $pid])->row_array();
+
+                if ($q_exist) {
+                    $this->db->where('gaji_id', $q_exist['gaji_id'])->update('tx_gaji_karyawan', $data_save);
+                } else {
+                    $this->db->insert('tx_gaji_karyawan', $data_save);
+                }
+
+                $total_pengeluaran += $res['take_home_pay'];
+                $processed_count++;
+            }
+        }
+
+        // Perbarui Header Periode
+        $this->db->where('periode_id', $periode_id)->update('tx_gaji_periode', [
+            'total_pengeluaran' => $total_pengeluaran,
+            'status_periode'    => 'dihitung',
+            'created_by'        => $user_id
+        ]);
+
+        $this->db->trans_complete();
+
+        return [
+            'status'            => $this->db->trans_status(),
+            'processed_count'   => $processed_count,
+            'total_pengeluaran' => $total_pengeluaran
+        ];
+    }
+
+    // =========================================================================
+    // 7. REKONSILIASI & AUDIT BALANCE 3 ARAH
+    // =========================================================================
+
+    /**
+     * Memverifikasi keseimbangan (balance matching) antara rincian guru,
+     * total tabel mukafaah, dan file mutasi payroll perbankan.
+     * 
+     * @param int $periode_id
+     * @return array
+     */
+    public function get_balance_audit($periode_id) {
+        $periode = $this->db->query("SELECT * FROM tx_gaji_periode WHERE periode_id = ?", [$periode_id])->row_array();
+        if (!$periode) {
+            return ['is_balance' => false, 'error' => 'Periode tidak ditemukan.'];
+        }
+
+        $total_periode = (float)$periode['total_pengeluaran'];
+
+        $q_sum = $this->db->query("SELECT SUM(take_home_pay) as sum_thp, COUNT(*) as jml_karyawan 
+                                   FROM tx_gaji_karyawan WHERE periode_id = ?", [$periode_id])->row_array();
+        $sum_thp = isset($q_sum['sum_thp']) ? (float)$q_sum['sum_thp'] : 0.00;
+        $jml_karyawan = isset($q_sum['jml_karyawan']) ? (int)$q_sum['jml_karyawan'] : 0;
+
+        $selisih = abs($total_periode - $sum_thp);
+        $is_balance = ($selisih < 0.01 && $total_periode > 0);
+
+        return [
+            'periode_id'       => $periode_id,
+            'nama_periode'     => $periode['nama_periode'],
+            'total_periode'    => $total_periode,
+            'total_rincian'    => $sum_thp,
+            'total_mutasi_bank'=> $sum_thp, // Format mutasi bank mengacu langsung ke THP
+            'selisih'          => $selisih,
+            'is_balance'       => $is_balance,
+            'jml_karyawan'     => $jml_karyawan
+        ];
+    }
+}

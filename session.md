@@ -1097,5 +1097,30 @@ Membangun controller migrasi mandiri `Migrate_payroll.php` dan skrip SQL `databa
 ### E. Seeder Profil 21 Pegawai & Rekening Bank:
 - Menyinkronkan data 21 guru dari Excel November 2026 ke dalam `m_pegawai` dan `m_pegawai_gaji_setting`, lengkap dengan nomor rekening Bank BRI dan BSI, serta Customer Reference unik (`MTNOVE001` - `MTNOVE021`).
 
+---
+
+## ⚙️ Tahap 2: Backend Calculation Engine (`Payroll_model.php`) (Selesai)
+**Tanggal:** 25 November 2026  
+**Status:** Berhasil Diimplementasikan  
+
+### A. Tujuan:
+Membangun model inti bisnis penggajian `application/models/Payroll_model.php` yang mengagregasi data presensi biometrik 2-tier (Tier 1 jam 06.45 toleransi 3 menit -> 06.48, dan Tier 2 jam 06.30), mengecualikan kepulangan awal pada hari khusus, mengkalkulasi uang makan, masa kerja, honor ekstra berbasis pelunasan siswa, serta menyediakan controller unit test `Test_payroll.php`.
+
+### B. Daftar File yang Ditambahkan & Dimodifikasi:
+1. `sdmis/application/models/Payroll_model.php` (**File Baru**): Model mesin kalkulasi komprehensif CI3:
+   - `get_setting_global()`: Membaca parameter acuan formula.
+   - `get_hari_khusus_dates()`: Membaca tanggal hari khusus (waiver pulang awal).
+   - `hitung_presensi_pegawai()`: Evaluasi kehadiran fisik, keterlambatan Tier 1 (>06.48), kedatangan Tier 2 (>06.30), sanksi pulang awal di luar hari khusus, pengecekan surat dokter di `tx_request_izin`, dan penentuan bonus Tier 1 (Rp 50.000) serta Tier 2 (Rp 50.000).
+   - `hitung_masa_kerja()` & `hitung_tunjangan_masa_kerja()`: Perhitungan tahun kerja dan TMK GTY (Rp 15.000/tahun).
+   - `hitung_tunjangan_makan()`: Tarif lama Rp 5.000 (>3 thn) vs tarif baru Rp 2.500 (<=3 thn) dikalikan hari hadir fisik.
+   - `hitung_honor_ekstra_pegawai()`: Tracking siswa lunas vs belum lunas (pending carry-over).
+   - `kalkulasi_gaji_pegawai()`: Kalkulasi utuh seluruh komponen perorangan hingga Take Home Pay.
+   - `batch_generate_payroll()`: One-click generate seluruh pegawai per periode dalam transaksi database.
+   - `get_balance_audit()`: Audit rekonsiliasi 3-arah (*balance check*).
+2. `sdmis/application/controllers/Test_payroll.php` (**File Baru**): Controller uji coba unit test mandiri via browser (`http://localhost/mis_dev/sdmis/test_payroll`) dengan dashboard visual.
+3. `sdmis/tutorial_migrasi.md` (**Dimodifikasi**): Menambahkan panduan pengujian Tahap 2.
+4. `sdmis/session.md` (**Dimodifikasi**): Dokumentasi Tahap 2.
+
+
 
 

@@ -218,4 +218,30 @@ Jika Anda lebih suka menjalankan query via phpMyAdmin cPanel Hostinger:
 2. Masuk ke tab **SQL**.
 3. Salin dan tempel isi file `database_migration_payroll.sql` $\to$ Klik **Kirim / Go**.
 
+---
+
+## ⚙️ Panduan Pengujian Tahap 2: Backend Calculation Engine (`Payroll_model.php`)
+
+### A. Pengujian di Lingkungan Lokal
+Buka browser Anda dan akses:
+```
+http://localhost/mis_dev/sdmis/test_payroll
+```
+*(Atau `http://localhost/sdmis/test_payroll`)*
+
+Halaman ini akan menjalankan unit test otomatis untuk memverifikasi:
+1. Pembacaan parameter acuan 2-tier (jam masuk 06.45 toleransi 3 menit -> 06.48, dan jam super early 06.30).
+2. Perhitungan masa kerja & tunjangan GTY (Rp 15.000/tahun).
+3. Formula uang makan guru lama (>3 thn Rp 5.000) dan guru baru (<=3 thn Rp 2.500).
+4. Logika keputusan 2-tier bonus presensi (Tier 1 Rp 50.000 + Tier 2 Rp 50.000).
+5. Ketersediaan master profil gaji 21 guru di database.
+
+### B. Pengujian di Server Hostinger (Nantinya)
+Setelah `git pull origin main` di Hostinger, Anda juga dapat membuka:
+```
+https://sdmis.sch.id/test_payroll
+```
+untuk memastikan backend engine berfungsi 100% normal di server live.
+
+
 
