@@ -404,10 +404,14 @@ class Migrate_payroll extends CI_Controller {
         // =============================================================
         // STEP 12: Seeder Data 21 Pegawai & Gaji Default (Dari Excel Nov 2026)
         // =============================================================
+        // Bersihkan baris dengan pegawai_id = 0 jika ada dari percobaan sebelumnya
+        $this->db->query("DELETE FROM m_pegawai_gaji_setting WHERE pegawai_id = 0");
+
         $pegawai_seed = [
             [
                 'id_pegawai' => 'AJ9315.2012.1',
                 'nama' => 'Guruh Suasana Eddy',
+                'keyword' => 'Guruh',
                 'email' => 'guruhsuasana@gmail.com',
                 'nomor' => '081234567890',
                 'jk' => 'L',
@@ -426,6 +430,7 @@ class Migrate_payroll extends CI_Controller {
             [
                 'id_pegawai' => 'AJ9315.2014.3',
                 'nama' => 'Siti Nurhayati Isnaini',
+                'keyword' => 'Siti Nurhayati',
                 'email' => 'nurhayatisiti862@gmail.com',
                 'nomor' => '08812852497',
                 'jk' => 'P',
@@ -444,6 +449,7 @@ class Migrate_payroll extends CI_Controller {
             [
                 'id_pegawai' => 'AJ9315.2015.4',
                 'nama' => 'Samini',
+                'keyword' => 'Samini',
                 'email' => 'bundamini508@gmail.com',
                 'nomor' => '082140955435',
                 'jk' => 'P',
@@ -462,6 +468,7 @@ class Migrate_payroll extends CI_Controller {
             [
                 'id_pegawai' => 'AJ9315.2016.5',
                 'nama' => 'Sri Marsini',
+                'keyword' => 'Sri Marsini',
                 'email' => 'putriayushenie@gmail.com',
                 'nomor' => '081393847291',
                 'jk' => 'P',
@@ -480,6 +487,7 @@ class Migrate_payroll extends CI_Controller {
             [
                 'id_pegawai' => 'AJ9315.2017.6',
                 'nama' => 'Sri Purwanti',
+                'keyword' => 'Sri Purwanti',
                 'email' => 's.purwanti223@gmail.com',
                 'nomor' => '081298471239',
                 'jk' => 'P',
@@ -498,6 +506,7 @@ class Migrate_payroll extends CI_Controller {
             [
                 'id_pegawai' => 'AJ9315.2018.8',
                 'nama' => 'Anwar Yusup',
+                'keyword' => 'Anwar',
                 'email' => 'yusupanwar819@gmail.com',
                 'nomor' => '085728391823',
                 'jk' => 'L',
@@ -516,6 +525,7 @@ class Migrate_payroll extends CI_Controller {
             [
                 'id_pegawai' => 'AJ9315.2022.10',
                 'nama' => 'Nuki Rifan Yuniardi',
+                'keyword' => 'Nuki',
                 'email' => 'paknukirifan@cyberschool.sch.id',
                 'nomor' => '082243619388',
                 'jk' => 'L',
@@ -534,6 +544,7 @@ class Migrate_payroll extends CI_Controller {
             [
                 'id_pegawai' => 'AJ9315.2022.11',
                 'nama' => 'Dewi Fatmala Sari',
+                'keyword' => 'Dewi Fatmala',
                 'email' => 'fatmade78@gmail.com',
                 'nomor' => '08156166650',
                 'jk' => 'P',
@@ -552,6 +563,7 @@ class Migrate_payroll extends CI_Controller {
             [
                 'id_pegawai' => 'AJ9315.2023.13',
                 'nama' => 'Giyanti',
+                'keyword' => 'Giyanti',
                 'email' => 'giyanti8871@gmail.com',
                 'nomor' => '085819283741',
                 'jk' => 'P',
@@ -570,6 +582,7 @@ class Migrate_payroll extends CI_Controller {
             [
                 'id_pegawai' => 'AJ9315.2024.14',
                 'nama' => 'Eka Fitri Nurhayati',
+                'keyword' => 'Eka Fitri',
                 'email' => 'ekafitrinurhayati0998@gmail.com',
                 'nomor' => '089618293847',
                 'jk' => 'P',
@@ -588,6 +601,7 @@ class Migrate_payroll extends CI_Controller {
             [
                 'id_pegawai' => 'AJ9315.2024.15',
                 'nama' => 'Neta Arum Sholikhah',
+                'keyword' => 'Neta',
                 'email' => 'netasukamane@gmail.com',
                 'nomor' => '087819283746',
                 'jk' => 'P',
@@ -606,6 +620,7 @@ class Migrate_payroll extends CI_Controller {
             [
                 'id_pegawai' => 'AJ9315.2024.17',
                 'nama' => 'Atii Tasmiyaturrosyadi',
+                'keyword' => 'Atii',
                 'email' => 'miarosyadi@gmail.com',
                 'nomor' => '081928374655',
                 'jk' => 'P',
@@ -624,6 +639,7 @@ class Migrate_payroll extends CI_Controller {
             [
                 'id_pegawai' => 'AJ9315.2025.20',
                 'nama' => 'Afkhan Rico Toriq Ibrahim',
+                'keyword' => 'Rico',
                 'email' => 'afkhanricoxtlb02@gmail.com',
                 'nomor' => '082193847562',
                 'jk' => 'L',
@@ -642,6 +658,7 @@ class Migrate_payroll extends CI_Controller {
             [
                 'id_pegawai' => 'AJ9315.2025.23',
                 'nama' => 'Hanivia Anggraheni Damayanti',
+                'keyword' => 'Hanivia',
                 'email' => 'damayantihanivia@gmail.com',
                 'nomor' => '085619283746',
                 'jk' => 'P',
@@ -660,6 +677,7 @@ class Migrate_payroll extends CI_Controller {
             [
                 'id_pegawai' => 'AJ9315.2025.26',
                 'nama' => 'Habila Hajar Hanifah',
+                'keyword' => 'Habila',
                 'email' => 'habilahajar@gmail.com',
                 'nomor' => '081392847561',
                 'jk' => 'P',
@@ -678,6 +696,7 @@ class Migrate_payroll extends CI_Controller {
             [
                 'id_pegawai' => 'AJ9315.2025.30',
                 'nama' => 'Aan Sholeh',
+                'keyword' => 'Aan Sholeh',
                 'email' => 'aansholeh23@gmail.com',
                 'nomor' => '087719283745',
                 'jk' => 'L',
@@ -696,6 +715,7 @@ class Migrate_payroll extends CI_Controller {
             [
                 'id_pegawai' => 'AJ9315.2025.31',
                 'nama' => 'Anang Yulianto',
+                'keyword' => 'Anang',
                 'email' => 'lembahmanahbarokah@gmail.com',
                 'nomor' => '081298374612',
                 'jk' => 'L',
@@ -714,6 +734,7 @@ class Migrate_payroll extends CI_Controller {
             [
                 'id_pegawai' => 'AJ9315.2025.32',
                 'nama' => 'Wahyu Anggoro Jati',
+                'keyword' => 'Wahyu',
                 'email' => 'wahyuanggoro891@gmail.com',
                 'nomor' => '085819283742',
                 'jk' => 'L',
@@ -732,6 +753,7 @@ class Migrate_payroll extends CI_Controller {
             [
                 'id_pegawai' => 'AJ9315.2025.33',
                 'nama' => 'Kak Annas',
+                'keyword' => 'Annas',
                 'email' => 'kakannas.tahfidz@cyberschool.sch.id',
                 'nomor' => '081928374100',
                 'jk' => 'L',
@@ -750,6 +772,7 @@ class Migrate_payroll extends CI_Controller {
             [
                 'id_pegawai' => 'AJ9315.2025.34',
                 'nama' => 'Trisuyoto',
+                'keyword' => 'Trisuyoto',
                 'email' => 'trisuyoto@gmail.com',
                 'nomor' => '081298471201',
                 'jk' => 'L',
@@ -768,6 +791,7 @@ class Migrate_payroll extends CI_Controller {
             [
                 'id_pegawai' => 'AJ9315.2025.35',
                 'nama' => 'Ayu Prastiwi',
+                'keyword' => 'Ayu Prastiwi',
                 'email' => 'ayuprastiwi.pko@gmail.com',
                 'nomor' => '081392847102',
                 'jk' => 'P',
@@ -788,14 +812,30 @@ class Migrate_payroll extends CI_Controller {
         $inserted_pegawai = 0;
         $updated_setting = 0;
 
+        // Ambil ID integer tertinggi di m_pegawai untuk auto-numbering pegawai baru
+        $max_id_q = $this->db->query("SELECT MAX(CAST(id_pegawai AS UNSIGNED)) as max_id FROM m_pegawai")->row_array();
+        $current_next_id = (isset($max_id_q['max_id']) && (int)$max_id_q['max_id'] > 0) ? ((int)$max_id_q['max_id'] + 1) : 100;
+
         foreach ($pegawai_seed as $ps) {
-            // Cek apakah pegawai sudah ada di m_pegawai berdasarkan email atau nama
-            $q_peg = $this->db->query("SELECT * FROM m_pegawai WHERE email_pegawai='".$ps['email']."' OR nama_pegawai LIKE '%".$ps['nama']."%'")->row_array();
+            $keyword = !empty($ps['keyword']) ? $ps['keyword'] : $ps['nama'];
+
+            // Smart Matching:
+            // 1. Cek email pegawai
+            // 2. Cek keyword nama (misal "Siti Nurhayati", "Dewi Fatmala")
+            // 3. Cek apakah nama_pegawai di DB terkandung di dalam nama seeder
+            $q_peg = $this->db->query(
+                "SELECT * FROM m_pegawai 
+                 WHERE (email_pegawai = ? AND email_pegawai != '')
+                    OR nama_pegawai LIKE ? 
+                    OR ? LIKE CONCAT('%', nama_pegawai, '%')
+                 LIMIT 1",
+                [$ps['email'], '%' . $keyword . '%', $ps['nama']]
+            )->row_array();
 
             if (!$q_peg) {
-                // Insert pegawai baru
+                // Daftarkan pegawai baru dengan id_pegawai berupa integer angka valid
                 $data_ins = [
-                    'id_pegawai'          => $ps['id_pegawai'],
+                    'id_pegawai'          => $current_next_id,
                     'nama_pegawai'        => $ps['nama'],
                     'email_pegawai'       => $ps['email'],
                     'nomor_pegawai'       => $ps['nomor'],
@@ -804,47 +844,51 @@ class Migrate_payroll extends CI_Controller {
                     'password_pegawai'    => password_hash('123456', PASSWORD_DEFAULT),
                     'foto_pegawai'        => 'assets/uploaded/users/default-logo.png',
                     'is_status'           => 'y',
+                    'is_del'              => 'n',
                     'created_at'          => date('Y-m-d H:i:s')
                 ];
                 $this->db->insert('m_pegawai', $data_ins);
-                $pid = $this->db->insert_id();
+                $pid = (int)$this->db->insert_id();
+                $current_next_id++;
                 $inserted_pegawai++;
             } else {
-                $pid = $q_peg['pegawai_id'];
+                $pid = (int)$q_peg['pegawai_id'];
                 // Update tanggal mulai kerja jika belum akurat
                 if (empty($q_peg['tanggal_mulai_kerja']) || $q_peg['tanggal_mulai_kerja'] == '0000-00-00') {
                     $this->db->where('pegawai_id', $pid)->update('m_pegawai', ['tanggal_mulai_kerja' => $ps['tgl_mulai']]);
                 }
             }
 
-            // Insert / Update setting gaji pegawai
-            $q_set = $this->db->query("SELECT * FROM m_pegawai_gaji_setting WHERE pegawai_id='$pid'")->row_array();
-            $data_gaji_set = [
-                'pegawai_id'              => $pid,
-                'status_kepegawaian'      => $ps['status_pegawai'],
-                'is_wali_kelas'           => $ps['is_wali'],
-                'nama_jabatan_struktural' => $ps['jabatan'],
-                'nominal_tunj_struktural' => $ps['tunj_jabatan'],
-                'gaji_pokok_nominal'      => $ps['gaji_pokok'],
-                'nama_bank'               => $ps['bank'],
-                'nomor_rekening'          => $ps['rekening'],
-                'nama_pemilik_rekening'   => $ps['pemilik'],
-                'cabang_bank'             => $ps['cabang'],
-                'customer_reff'           => $ps['reff']
-            ];
+            if ($pid > 0) {
+                // Insert / Update setting gaji pegawai
+                $q_set = $this->db->query("SELECT * FROM m_pegawai_gaji_setting WHERE pegawai_id = ?", [$pid])->row_array();
+                $data_gaji_set = [
+                    'pegawai_id'              => $pid,
+                    'status_kepegawaian'      => $ps['status_pegawai'],
+                    'is_wali_kelas'           => $ps['is_wali'],
+                    'nama_jabatan_struktural' => $ps['jabatan'],
+                    'nominal_tunj_struktural' => $ps['tunj_jabatan'],
+                    'gaji_pokok_nominal'      => $ps['gaji_pokok'],
+                    'nama_bank'               => $ps['bank'],
+                    'nomor_rekening'          => $ps['rekening'],
+                    'nama_pemilik_rekening'   => $ps['pemilik'],
+                    'cabang_bank'             => $ps['cabang'],
+                    'customer_reff'           => $ps['reff']
+                ];
 
-            if (!$q_set) {
-                $this->db->insert('m_pegawai_gaji_setting', $data_gaji_set);
-                $updated_setting++;
-            } else {
-                $this->db->where('pegawai_id', $pid)->update('m_pegawai_gaji_setting', $data_gaji_set);
-                $updated_setting++;
+                if (!$q_set) {
+                    $this->db->insert('m_pegawai_gaji_setting', $data_gaji_set);
+                    $updated_setting++;
+                } else {
+                    $this->db->where('pegawai_id', $pid)->update('m_pegawai_gaji_setting', $data_gaji_set);
+                    $updated_setting++;
+                }
             }
         }
 
         $logs[] = [
             'step' => 'Seeder 21 Guru & Rekening',
-            'detail' => 'Berhasil sinkronisasi 21 profil guru dan data perbankan (Insert Pegawai: '.$inserted_pegawai.', Setting Gaji: '.$updated_setting.').',
+            'detail' => 'Berhasil sinkronisasi profil 21 guru dan data perbankan (Insert Pegawai: '.$inserted_pegawai.', Setting Gaji: '.$updated_setting.').',
             'status' => 'success'
         ];
 

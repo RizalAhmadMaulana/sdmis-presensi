@@ -634,4 +634,141 @@ class Payroll_model extends CI_Model {
             'jml_karyawan'     => $jml_karyawan
         ];
     }
+
+    // =========================================================================
+    // 8. CRUD HELPER: PENGATURAN GLOBAL & HARI KHUSUS (TAHAP 3)
+    // =========================================================================
+
+    /**
+     * Memperbarui konfigurasi setting global penggajian
+     * @param array $data
+     * @return bool
+     */
+    public function update_setting_global($data) {
+        $check = $this->db->get_where('m_gaji_setting_global', ['setting_id' => 1])->num_rows();
+        if ($check > 0) {
+            $this->db->where('setting_id', 1);
+            return $this->db->update('m_gaji_setting_global', $data);
+        } else {
+            $data['setting_id'] = 1;
+            return $this->db->insert('m_gaji_setting_global', $data);
+        }
+    }
+
+    /**
+     * Mengambil seluruh data kalender hari khusus
+     * @return array
+     */
+    public function get_all_hari_khusus() {
+        return $this->db->order_by('tanggal', 'DESC')->get('m_gaji_hari_khusus')->result_array();
+    }
+
+    /**
+     * Menambahkan agenda hari khusus pulang cepat
+     * @param array $data
+     * @return bool|string True jika sukses, string pesan error jika tanggal duplikat
+     */
+    public function add_hari_khusus($data) {
+        $tgl = $data['tanggal'];
+        $check = $this->db->get_where('m_gaji_hari_khusus', ['tanggal' => $tgl])->num_rows();
+        if ($check > 0) {
+            return 'Tanggal ' . date('d/m/Y', strtotime($tgl)) . ' sudah terdaftar dalam Kalender Hari Khusus.';
+        }
+        return $this->db->insert('m_gaji_hari_khusus', $data);
+    }
+
+    /**
+     * Menghapus agenda hari khusus
+     * @param int $id
+     * @return bool
+     */
+    public function delete_hari_khusus($id) {
+        return $this->db->where('id', $id)->delete('m_gaji_hari_khusus');
+    }
+
+    // =========================================================================
+    // 9. CRUD HELPER: PROFIL GAJI & REKENING PEGAWAI (TAHAP 4)
+    // =========================================================================
+
+    /**
+     * Mengambil daftar seluruh pegawai aktif lengkap dengan profil gaji & rekening bank
+     * @return array
+     */
+    public function get_list_pegawai_gaji() {
+        $sql = "SELECT a.pegawai_id, a.id_pegawai, a.nama_pegawai, a.nomor_pegawai, 
+                       a.tanggal_mulai_kerja, a.is_status,
+                       b.id as setting_id, 
+                       COALESCE(b.status_kepegawaian, 'gty') as status_kepegawaian, 
+                       COALESCE(b.is_wali_kelas, 'n') as is_wali_kelas, 
+                       b.nama_jabatan_struktural,
+                       COALESCE(b.nominal_tunj_struktural, 0.00) as nominal_tunj_struktural, 
+                       COALESCE(b.gaji_pokok_nominal, 500000.00) as gaji_pokok_nominal, 
+                       COALESCE(b.tunj_khusus_tetap, 0.00) as tunj_khusus_tetap,
+                       COALESCE(b.nama_bank, 'BRI') as nama_bank, 
+                       b.nomor_rekening, 
+                       b.nama_pemilik_rekening, 
+                       COALESCE(b.cabang_bank, 'Klaten') as cabang_bank, 
+                       b.customer_reff
+                FROM m_pegawai a
+                LEFT JOIN m_pegawai_gaji_setting b ON a.pegawai_id = b.pegawai_id
+                WHERE a.is_del = 'n'
+                ORDER BY a.nama_pegawai ASC";
+        $list = $this->db->query($sql)->result_array();
+
+        // Hitung masa kerja per pegawai
+        $today = date('Y-m-d');
+        foreach ($list as &$row) {
+            $row['masa_kerja_tahun'] = $this->hitung_masa_kerja($row['tanggal_mulai_kerja'], $today);
+            $row['est_tunj_masa_kerja'] = $this->hitung_tunjangan_masa_kerja($row['masa_kerja_tahun'], $row['status_kepegawaian']);
+        }
+        return $list;
+    }
+
+    /**
+     * Mengambil detail profil gaji satu pegawai berdasarkan ID
+     * @param int $pegawai_id
+     * @return array|bool
+     */
+    public function get_pegawai_gaji_by_id($pegawai_id) {
+        $sql = "SELECT a.pegawai_id, a.id_pegawai, a.nama_pegawai, a.nomor_pegawai, 
+                       a.tanggal_mulai_kerja, a.is_status,
+                       b.id as setting_id, 
+                       COALESCE(b.status_kepegawaian, 'gty') as status_kepegawaian, 
+                       COALESCE(b.is_wali_kelas, 'n') as is_wali_kelas, 
+                       b.nama_jabatan_struktural,
+                       COALESCE(b.nominal_tunj_struktural, 0.00) as nominal_tunj_struktural, 
+                       COALESCE(b.gaji_pokok_nominal, 500000.00) as gaji_pokok_nominal, 
+                       COALESCE(b.tunj_khusus_tetap, 0.00) as tunj_khusus_tetap,
+                       COALESCE(b.nama_bank, 'BRI') as nama_bank, 
+                       b.nomor_rekening, 
+                       b.nama_pemilik_rekening, 
+                       COALESCE(b.cabang_bank, 'Klaten') as cabang_bank, 
+                       b.customer_reff
+                FROM m_pegawai a
+                LEFT JOIN m_pegawai_gaji_setting b ON a.pegawai_id = b.pegawai_id
+                WHERE a.pegawai_id = ? AND a.is_del = 'n'";
+        $row = $this->db->query($sql, [$pegawai_id])->row_array();
+        if ($row) {
+            $row['masa_kerja_tahun'] = $this->hitung_masa_kerja($row['tanggal_mulai_kerja'], date('Y-m-d'));
+            $row['est_tunj_masa_kerja'] = $this->hitung_tunjangan_masa_kerja($row['masa_kerja_tahun'], $row['status_kepegawaian']);
+        }
+        return $row;
+    }
+
+    /**
+     * Menyimpan/memperbarui data profil gaji dan rekening pegawai
+     * @param int $pegawai_id
+     * @param array $data
+     * @return bool
+     */
+    public function save_pegawai_gaji($pegawai_id, $data) {
+        $check = $this->db->get_where('m_pegawai_gaji_setting', ['pegawai_id' => $pegawai_id])->num_rows();
+        if ($check > 0) {
+            $this->db->where('pegawai_id', $pegawai_id);
+            return $this->db->update('m_pegawai_gaji_setting', $data);
+        } else {
+            $data['pegawai_id'] = $pegawai_id;
+            return $this->db->insert('m_pegawai_gaji_setting', $data);
+        }
+    }
 }

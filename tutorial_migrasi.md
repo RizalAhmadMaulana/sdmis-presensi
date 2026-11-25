@@ -243,5 +243,64 @@ https://sdmis.sch.id/test_payroll
 ```
 untuk memastikan backend engine berfungsi 100% normal di server live.
 
+---
+
+## 🎨 Panduan Pengujian Tahap 3: UI Pengaturan Aturan & Kalender Hari Khusus
+
+### A. Pengujian di Komputer Lokal
+1. Pastikan Anda sudah login ke portal admin SDMIS di komputer lokal (`http://localhost/mis_dev/sdmis/`).
+2. Buka menu sidebar: **Penggajian** $\to$ **Pengaturan Aturan & Tarif**, atau langsung akses:
+   ```
+   http://localhost/mis_dev/sdmis/gaji/setting
+   ```
+3. **Pengujian Form Formula 2-Tier & Tarif**:
+   - Periksa form parameter jam masuk acuan (`06:45`), toleransi keterlambatan (`3` menit), jam super early (`06:30`), batas pelanggaran (`3` kali), bonus Tier 1 (`50.000`), dan bonus Tier 2 (`50.000`).
+   - Coba ubah salah satu nilai, lalu klik **Simpan Seluruh Pengaturan**. Pastikan muncul alert hijau sukses dan nilai baru tersimpan.
+4. **Pengujian Kalender Hari Khusus Pulang Cepat (SOP 3.a)**:
+   - Klik tombol **+ Tambah** di panel kanan *Kalender Hari Khusus*.
+   - Masukkan tanggal (misal tanggal hari ini atau tanggal rapat dewan guru), isi keterangan (misal: `"Rapat Evaluasi Semester"`), pilih opsi *"Bebas Sanksi (Boleh Pulang Lebih Awal)"*, lalu klik **Simpan ke Kalender**.
+   - Pastikan tanggal tersebut langsung muncul di daftar tabel kalender.
+   - Coba klik tombol ikon tempat sampah merah pada baris agenda untuk menguji fitur hapus agenda.
+
+### B. Menerapkan di Server Produksi Hostinger (Nantinya)
+Karena struktur tabel `m_gaji_setting_global` dan `m_gaji_hari_khusus` sudah dibuat saat migrasi Tahap 1, Anda **tidak memerlukan konfigurasi database tambahan**.
+1. Lakukan `git pull origin main` di Hostinger via terminal SSH.
+2. Login sebagai Superadmin di `https://sdmis.sch.id/`.
+3. Akses menu `Penggajian` $\to$ `Pengaturan Aturan & Tarif` di URL:
+   ```
+   https://sdmis.sch.id/gaji/setting
+   ```
+
+---
+
+## 👥 Panduan Pengujian Tahap 4: UI Master Profil Gaji & Rekening Guru
+
+### A. Pengujian di Komputer Lokal
+1. Pastikan Anda sudah login ke portal admin SDMIS di komputer lokal (`http://localhost/mis_dev/sdmis/`).
+2. Buka menu sidebar: **Penggajian** $\to$ **Master Gaji & Rekening**, atau langsung akses:
+   ```
+   http://localhost/mis_dev/sdmis/gaji/karyawan
+   ```
+3. **Pemeriksaan Tampilan & Data**:
+   - Periksa 4 KPI Summary Cards di bagian atas (Total Guru/Karyawan, Guru Tetap Yayasan [GTY], Kontrak/Ekstra, dan Rekening Siap Transfer).
+   - Pastikan seluruh daftar guru dari Excel November 2026 tampil rapi pada tabel lengkap dengan badge status GTY, penugasan wali kelas/struktural, nominal gaji pokok, dan nomor rekening bank.
+4. **Pengujian Modal Edit Profil Gaji & Rekening**:
+   - Klik tombol **Edit** berwarna biru pada salah satu guru (misal *Siti Nurhayati* atau *Anwar Sadat*).
+   - Periksa apakah popup modal terbuka dengan data yang sudah terisi otomatis:
+     - **Tab 1 (Profil Gaji & Jabatan)**: Status kepegawaian (GTY), Gaji Pokok (Rp 500.000), Status Wali Kelas, Jabatan Struktural.
+     - **Tab 2 (Rekening Bank & CMS)**: Nama Bank (BRI / BSI), Nomor Rekening, Atas Nama, Customer Reference (`MTNOVE...`).
+   - Coba ubah status wali kelas atau nominal tunjangan, lalu klik **Simpan Perubahan**.
+   - Halaman akan memuat ulang dengan pesan sukses dan data terbaru langsung diperbarui di tabel!
+
+### B. Menerapkan di Server Produksi Hostinger (Nantinya)
+1. Lakukan `git pull origin main` di server Hostinger.
+2. Login ke portal admin di `https://sdmis.sch.id/`.
+3. Akses URL:
+   ```
+   https://sdmis.sch.id/gaji/karyawan
+   ```
+   Seluruh master data gaji dan nomor rekening guru akan langsung aktif dan siap digunakan untuk proses hitung gaji di Tahap selanjutnya.
+
+
 
 

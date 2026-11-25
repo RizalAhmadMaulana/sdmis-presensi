@@ -1121,6 +1121,63 @@ Membangun model inti bisnis penggajian `application/models/Payroll_model.php` ya
 3. `sdmis/tutorial_migrasi.md` (**Dimodifikasi**): Menambahkan panduan pengujian Tahap 2.
 4. `sdmis/session.md` (**Dimodifikasi**): Dokumentasi Tahap 2.
 
+### C. Pembaruan Perbaikan Seeder Smart Matching (Tahap 2):
+- Menambahkan algoritma *Smart Name Matching* pada seeder `Migrate_payroll.php` agar nama guru panggilan di database (contoh: `"Siti Nurhayati"`, `"Dewi Fatmala"`, `"Nuki"`) dapat secara otomatis terpetakan ke data Excel (yang memuat nama lengkap beserta gelar).
+- Mengamankan auto-numbering integer untuk kolom `id_pegawai` bagi pendaftaran guru baru, mencegah string kode yayasan masuk ke kolom bertipe INT.
+- Membersihkan record invalid `pegawai_id = 0` di tabel `m_pegawai_gaji_setting`.
+- Menjamin seluruh 21 profil guru dan rekening bank terhubung 100% sehingga unit test di `Test_payroll.php` berstatus PASSED sempurna.
+
+---
+
+## 🎨 Tahap 3: UI Pengaturan Tarif & Kalender Hari Khusus Pulang Cepat (Selesai)
+**Tanggal:** 25 November 2026  
+**Status:** Berhasil Diimplementasikan  
+
+### A. Tujuan:
+Membangun antarmuka visual admin untuk mengelola konfigurasi aturan presensi bertingkat 2-tier (Tier 1 jam masuk 06.45 toleransi 3 menit = 06.48, dan Tier 2 jam 06.30), batas maksimal pelanggaran (3 kali), besaran bonus kedisiplinan, tarif uang makan kehadiran (lama vs baru), tarif masa kerja tahunan GTY, akun rekening debit yayasan, serta kalender agenda hari khusus kepulangan awal (special leave waiver) sesuai SOP 3.a.
+
+### B. Daftar File yang Ditambahkan & Dimodifikasi:
+1. `sdmis/application/controllers/gaji/Setting.php` (**File Baru**): Controller manajemen pengaturan global dan kalender hari khusus:
+   - `index()`: Memuat setting aktif dan daftar tanggal hari khusus.
+   - `update_setting()`: Memproses simpan pembaruan formulasi tarif & parameter waktu.
+   - `add_hari_khusus()`: Menambahkan agenda hari khusus dengan proteksi tanggal unik.
+   - `delete_hari_khusus($id)`: Menghapus tanggal hari khusus dari kalender.
+2. `sdmis/application/views/module/gaji/setting/index.php` (**File Baru**): Tampilan antarmuka Tabler & Bootstrap 5 responsif:
+   - Card Formula Presensi 2-Tier dengan rincian jam, batas toleransi, dan nominal bonus.
+   - Card Tarif Uang Makan, Masa Kerja GTY, dan Tunjangan Wali Kelas.
+   - Card Rekening Debet Yayasan untuk integrasi CMS transfer bank.
+   - Panel Kalender Hari Khusus Pulang Cepat beserta modal interaktif tambah agenda.
+3. `sdmis/application/models/Payroll_model.php` (**Dimodifikasi**): Menambahkan method CRUD:
+   - `update_setting_global($data)`
+   - `get_all_hari_khusus()`
+   - `add_hari_khusus($data)`
+   - `delete_hari_khusus($id)`
+
+---
+
+## 👥 Tahap 4: UI Profil Gaji & Rekening 21 Guru / Karyawan (Selesai)
+**Tanggal:** 25 November 2026  
+**Status:** Berhasil Diimplementasikan  
+
+### A. Tujuan:
+Menyediakan antarmuka manajemen profil penggajian lengkap bagi 21 guru dan karyawan, mencakup pemetaan status kepegawaian (GTY, Kontrak, Guru Ekstra, Karyawan), penugasan wali kelas, jabatan struktural (Waka, Kepala PAUD, PJ Sarpras), nominal gaji pokok, dan detail perbankan (Bank BRI / BSI, Nomor Rekening, Atas Nama, Customer Reference) untuk disbursement transfer payroll bulanan.
+
+### B. Daftar File yang Ditambahkan & Dimodifikasi:
+1. `sdmis/application/controllers/gaji/Karyawan.php` (**File Baru**): Controller master profil gaji pegawai:
+   - `index()`: Mengagregasi data 26 pegawai, menghitung masa kerja otomatis per guru, dan menyajikan ringkasan KPI Cards.
+   - `get_detail_ajax($pegawai_id)`: Endpoint AJAX mengambil detail profil pegawai untuk modal edit.
+   - `update_setting()`: Memproses pembaruan data gaji, tunjangan struktural, dan rekening bank.
+2. `sdmis/application/views/module/gaji/karyawan/index.php` (**File Baru**): Antarmuka tabel interaktif:
+   - 4 KPI Metric Summary Cards (Total Pegawai, Guru Tetap Yayasan [GTY], Kontrak/Ekstra, Rekening Siap Transfer).
+   - DataTables responsif dengan badge status, masa kerja, gaji pokok, info bank, dan Customer Reff CMS.
+   - Modal Edit Gaji & Rekening Interaktif 2 Tab (Profil Gaji & Jabatan vs Rekening Bank & CMS) dengan JavaScript auto-fill.
+3. `sdmis/application/models/Payroll_model.php` (**Dimodifikasi**): Menambahkan method:
+   - `get_list_pegawai_gaji()`: Mengambil daftar pegawai join `m_pegawai_gaji_setting` dengan kalkulasi masa kerja dinamis.
+   - `get_pegawai_gaji_by_id($pegawai_id)`: Mengambil detail profil satu pegawai.
+   - `save_pegawai_gaji($pegawai_id, $data)`: Melakukan upsert data gaji dan perbankan pegawai.
+
+
+
 
 
 
