@@ -301,6 +301,68 @@ Karena struktur tabel `m_gaji_setting_global` dan `m_gaji_hari_khusus` sudah dib
    ```
    Seluruh master data gaji dan nomor rekening guru akan langsung aktif dan siap digunakan untuk proses hitung gaji di Tahap selanjutnya.
 
+---
+
+## 🎯 Panduan Pengujian Tahap 5: Modul Ekstrakurikuler & Pelunasan Siswa
+
+### A. Pengujian di Komputer Lokal
+1. Buka browser dan akses menu: **Penggajian** $\to$ **Manajemen Ekstra & Siswa**, atau langsung URL:
+   ```
+   http://localhost/mis_dev/sdmis/gaji/ekstra
+   ```
+2. **Pemeriksaan KPI Metrics & Filter**:
+   - Periksa 4 KPI Cards (Total Siswa Terdaftar, Siswa Lunas, Siswa Belum Lunas [Carry-Over], dan Total Honor Siap Cair).
+   - Gunakan dropdown filter Cabang Ekstra (Panahan, Sepatu Roda, Renang, Tahfidz), Bulan, dan Tahun.
+3. **Pengujian Fitur Tambah Siswa**:
+   - Klik tombol **Tambah Peserta Siswa**.
+   - Pilih cabang (misal *Panahan*), isi nama siswa (misal *"Muhammad Al-Fatih"*), kelas (`3A`), pilih status pembayaran (*LUNAS* atau *BELUM LUNAS*), lalu simpan.
+4. **Pengujian 1-Click Toggle Status Pelunasan (SOP 7 & 8)**:
+   - Pada tabel peserta, klik tombol status pada baris siswa.
+   - Status akan otomatis berganti antara **LUNAS (Cair)** (hijau) dan **BELUM LUNAS (Carry-Over)** (kuning) serta tanggal bayar akan otomatis terisi saat berstatus lunas.
+5. **Pengujian Master Cabang Ekstra**:
+   - Klik tombol **Master Cabang Ekstra** untuk melihat daftar pengampu (Anang Yulianto untuk Panahan, Afkhan Rico untuk Tahfidz) dan tarif standar.
+
+### B. Menerapkan di Server Produksi Hostinger (Nantinya)
+1. Lakukan `git pull origin main` di server Hostinger.
+2. Akses URL:
+   ```
+   https://sdmis.sch.id/gaji/ekstra
+   ```
+
+---
+
+## ⚡ Panduan Pengujian Tahap 6: Core Generator Periode & Modal Penyesuaian
+
+### A. Pengujian di Komputer Lokal
+1. Buka browser dan akses menu: **Penggajian** $\to$ **Periode & Hitung Gaji**, atau langsung URL:
+   ```
+   http://localhost/mis_dev/sdmis/gaji/periode
+   ```
+2. **Pengujian Pembuatan Periode Baru**:
+   - Klik tombol **Buat Periode Baru**.
+   - Pilih Bulan: **November**, Tahun: **2026**.
+   - Tanggal Awal: `2026-11-01`, Tanggal Akhir: `2026-11-30`.
+   - Total Hari Kerja: `20` hari.
+   - Klik **Buat Periode & Lanjut**. Anda akan langsung diarahkan ke halaman detail periode tersebut.
+3. **Pengujian TOMBOL SAKTI ⚡ "HITUNG OTOMATIS DARI PRESENSI"**:
+   - Klik tombol besar kuning berkilau **⚡ HITUNG OTOMATIS DARI PRESENSI**.
+   - Sistem akan langsung menjalankan kalkulasi presensi 2-tier (06.48 & 06.30), uang makan, masa kerja GTY, dan honor ekstra untuk seluruh 26 guru secara instan!
+   - Periksa 6 KPI Summary Cards dan tabel slip gaji per guru.
+4. **Pengujian Modal Penyesuaian Manual (SOP Poin 5)**:
+   - Klik tombol **+ Penyesuaian Manual** (atau tombol *Adjust* pada baris guru, misal Pak Anwar / Pak Nuki / Bunda Dewi).
+   - Pilih jenis (Penambahan/Potongan), pilih Kategori (Talangan Operasional / Kasbon / Transport), isi keterangan (misal: *"Talangan servis jemputan"*), masukkan nominal, lalu simpan.
+   - Nilai Take Home Pay (THP) dan total pengeluaran yayasan akan langsung diperbarui secara otomatis (*real-time sync*)!
+5. **Pengujian Kunci Final**:
+   - Klik tombol **Kunci Final** untuk mengunci periode jika perhitungan telah selesai.
+
+### B. Menerapkan di Server Produksi Hostinger (Nantinya)
+1. Lakukan `git pull origin main` di server Hostinger.
+2. Akses URL:
+   ```
+   https://sdmis.sch.id/gaji/periode
+   ```
+
+
 
 
 

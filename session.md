@@ -1176,6 +1176,66 @@ Menyediakan antarmuka manajemen profil penggajian lengkap bagi 21 guru dan karya
    - `get_pegawai_gaji_by_id($pegawai_id)`: Mengambil detail profil satu pegawai.
    - `save_pegawai_gaji($pegawai_id, $data)`: Melakukan upsert data gaji dan perbankan pegawai.
 
+---
+
+## 🎯 Tahap 5: Modul Ekstrakurikuler & Pelunasan Siswa (Sistem Carry-Over) (Selesai)
+**Tanggal:** 25 November 2026  
+**Status:** Berhasil Diimplementasikan  
+
+### A. Tujuan:
+Membangun antarmuka pengelolaan peserta ekstrakurikuler siswa dan tracking pelunasan iuran bulanan berdasarkan SOP 6, 7, dan 8:
+- Siswa yang lunas di awal bulan otomatis mencairkan honor guru pengampu (Panahan, Sepatu Roda, Renang, Tahfidz/Tasmi') pada bulan berjalan.
+- Siswa yang belum lunas otomatis menangguhkan honor guru (*carry-over*) dan akan dicairkan saat pembayaran dilunasi.
+- Menyediakan checklist pelunasan interaktif 1-klik toggle, filter per cabang/bulan/tahun, serta modal master cabang ekstra.
+
+### B. Daftar File yang Ditambahkan & Dimodifikasi:
+1. `sdmis/application/controllers/gaji/Ekstra.php` (**File Baru**): Controller manajemen ekstra & siswa:
+   - `index()`: Filter cabang/bulan/tahun, KPI Cards (Total Siswa, Lunas, Belum Lunas, Honor Cair vs Tertahan).
+   - `toggle_status($id)`: 1-klik toggle pelunasan (Lunas <-> Pending) dengan pencatatan tanggal bayar.
+   - `add_siswa()`: Menambahkan peserta siswa baru ke cabang ekstra terpilih.
+   - `delete_siswa($id)`: Menghapus peserta siswa dari daftar ekstra.
+   - `save_ekstra()`: Menyimpan / memperbarui master cabang ekstra & pemetaan guru pengampu.
+2. `sdmis/application/views/module/gaji/ekstra/index.php` (**File Baru**): View antarmuka Tabler & Bootstrap 5:
+   - 4 KPI Metric Summary Cards (Siswa Terdaftar, Siswa Lunas, Siswa Pending, Honor Siap Cair).
+   - Toolbar filter responsif (Cabang, Bulan, Tahun).
+   - Responsive DataTable dengan badge status LUNAS vs BELUM LUNAS (Carry-Over).
+   - Modal Tambah Siswa & Modal Master Cabang Ekstra.
+3. `sdmis/application/models/Payroll_model.php` (**Dimodifikasi**): Menambahkan method:
+   - `get_all_ekstra()` & `_auto_link_guru_ekstra()`: Pemetaan guru pengampu ke cabang ekstra.
+   - `get_siswa_ekstra()`: Query daftar peserta dengan filter multi-kriteria.
+   - `toggle_status_bayar_siswa()`: Toggle status bayar.
+   - `save_siswa_ekstra()`, `delete_siswa_ekstra()`, `save_ekstra()`.
+
+---
+
+## ⚡ Tahap 6: Core Generator Periode & Modal Penyesuaian Manual (Selesai)
+**Tanggal:** 25 November 2026  
+**Status:** Berhasil Diimplementasikan  
+
+### A. Tujuan:
+Membangun antarmuka siklus penggajian bulanan dengan fitur **Tombol Sakti ⚡ "Hitung Otomatis dari Presensi"** yang dalam 1 transaksi mengeksekusi penarikan riwayat absensi biometrik 2-tier (06.48 & 06.30), pengecualian kalender hari khusus pulang cepat, masa kerja GTY, uang makan harian, dan honor ekstra lunas. Selain itu, menyediakan modal penyesuaian manual untuk talangan operasional sekolah (Pak Anwar, Pak Nuki, Bunda Dewi), kasbon, dan uang transport.
+
+### B. Daftar File yang Ditambahkan & Dimodifikasi:
+1. `sdmis/application/controllers/gaji/Periode.php` (**File Baru**): Controller generator periode penggajian:
+   - `index()`: Riwayat periode bulanan, status (Draft, Dihitung, Final, Terbayar), total pengeluaran THP.
+   - `create()`: Modal pembuatan periode baru dengan setting cut-off tanggal 1 - 30/31.
+   - `detail($periode_id)`: Halaman audit rincian slip 26 guru dan KPI metrics periode.
+   - `hitung_otomatis($periode_id)`: Eksekusi batch calculation engine presensi & mukafaah.
+   - `add_penyesuaian()`: Input penyesuaian manual (talangan operasional, kasbon, transport).
+   - `delete_penyesuaian($id)`: Hapus penyesuaian manual & rekalkulasi THP seketika.
+   - `kunci_periode($periode_id)`: Finalisasi periode penggajian sebelum pencairan.
+2. `sdmis/application/views/module/gaji/periode/index.php` (**File Baru**): Tampilan daftar periode bulanan dan modal buat periode.
+3. `sdmis/application/views/module/gaji/periode/detail.php` (**File Baru**): Tampilan detail rincian slip gaji:
+   - Action header dengan Tombol Sakti ⚡ **Hitung Otomatis dari Presensi** & tombol Kunci Final.
+   - 6 KPI Summary Cards (Guru Terhitung, Bonus Presensi 2-Tier, Uang Makan, Ekstra, Talangan/Kasbon, Total THP).
+   - DataTable lengkap rincian seluruh komponen hak & kewajiban 26 guru.
+   - Modal input penyesuaian manual (SOP Poin 5: Talangan Pak Anwar, Pak Nuki, Bunda Dewi, Kasbon).
+4. `sdmis/application/models/Payroll_model.php` (**Dimodifikasi**): Menambahkan method:
+   - `get_all_periode()`, `get_periode_by_id()`, `save_periode()`.
+   - `get_rincian_gaji_periode()`, `get_gaji_karyawan_by_id()`.
+   - `add_penyesuaian_manual()`, `delete_penyesuaian_manual()`, `recalculate_single_karyawan()`.
+
+
 
 
 

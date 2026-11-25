@@ -771,4 +771,337 @@ class Payroll_model extends CI_Model {
             return $this->db->insert('m_pegawai_gaji_setting', $data);
         }
     }
+
+    // =========================================================================
+    // 10. CRUD HELPER: EKSTRAKURIKULER & TRACKING PELUNASAN SISWA (TAHAP 5)
+    // =========================================================================
+
+    /**
+     * Mengambil seluruh cabang ekstrakurikuler beserta nama guru pengampu
+     * @return array
+     */
+    public function get_all_ekstra() {
+        // Auto-link guru pengampu jika masih kosong
+        $this->_auto_link_guru_ekstra();
+
+        $sql = "SELECT a.*, b.nama_pegawai, b.id_pegawai as nip_pegawai, b.nomor_pegawai 
+                FROM m_ekstra a
+                LEFT JOIN m_pegawai b ON a.pegawai_id = b.pegawai_id
+                WHERE a.is_active = 'y'
+                ORDER BY a.nama_ekstra ASC";
+        return $this->db->query($sql)->result_array();
+    }
+
+    /**
+     * Memastikan guru pengampu ekstra terpetakan dengan tepat
+     */
+    private function _auto_link_guru_ekstra() {
+        // Anang Yulianto -> Panahan
+        $q_anang = $this->db->query("SELECT pegawai_id FROM m_pegawai WHERE nama_pegawai LIKE '%Anang%' AND is_del = 'n' LIMIT 1")->row_array();
+        if ($q_anang) {
+            $this->db->query("UPDATE m_ekstra SET pegawai_id = ? WHERE nama_ekstra LIKE '%Panahan%' AND (pegawai_id IS NULL OR pegawai_id = 0)", [$q_anang['pegawai_id']]);
+        }
+        // Afkhan Rico -> Tahfidz
+        $q_rico = $this->db->query("SELECT pegawai_id FROM m_pegawai WHERE (nama_pegawai LIKE '%Afkhan%' OR nama_pegawai LIKE '%Rico%') AND is_del = 'n' LIMIT 1")->row_array();
+        if ($q_rico) {
+            $this->db->query("UPDATE m_ekstra SET pegawai_id = ? WHERE nama_ekstra LIKE '%Tahfidz%' AND (pegawai_id IS NULL OR pegawai_id = 0)", [$q_rico['pegawai_id']]);
+        }
+    }
+
+    /**
+     * Mengambil daftar siswa peserta ekstra dengan filter cabang, bulan, dan tahun
+     * @param int|null $ekstra_id
+     * @param int|null $bulan
+     * @param int|null $tahun
+     * @param string|null $status_bayar
+     * @return array
+     */
+    public function get_siswa_ekstra($ekstra_id = null, $bulan = null, $tahun = null, $status_bayar = null) {
+        $this->db->select('a.*, b.nama_ekstra, b.tipe_honor, b.tarif_standar, c.nama_pegawai as nama_guru_pengampu');
+        $this->db->from('tx_ekstra_siswa a');
+        $this->db->join('m_ekstra b', 'a.ekstra_id = b.ekstra_id');
+        $this->db->join('m_pegawai c', 'b.pegawai_id = c.pegawai_id', 'left');
+
+        if ($ekstra_id) {
+            $this->db->where('a.ekstra_id', $ekstra_id);
+        }
+        if ($bulan) {
+            $this->db->where('a.bulan', $bulan);
+        }
+        if ($tahun) {
+            $this->db->where('a.tahun', $tahun);
+        }
+        if ($status_bayar) {
+            $this->db->where('a.status_bayar', $status_bayar);
+        }
+
+        $this->db->order_by('a.status_bayar', 'ASC'); // Pending dulu baru lunas
+        $this->db->order_by('a.nama_siswa', 'ASC');
+        return $this->db->get()->result_array();
+    }
+
+    /**
+     * Toggle status pembayaran siswa (lunas <-> pending)
+     * @param int $id
+     * @return array Status baru & status operasi
+     */
+    public function toggle_status_bayar_siswa($id) {
+        $row = $this->db->get_where('tx_ekstra_siswa', ['id' => $id])->row_array();
+        if (!$row) {
+            return ['status' => false, 'message' => 'Data siswa tidak ditemukan.'];
+        }
+
+        if ($row['status_bayar'] === 'lunas') {
+            $new_status = 'pending';
+            $tgl_bayar = null;
+        } else {
+            $new_status = 'lunas';
+            $tgl_bayar = date('Y-m-d');
+        }
+
+        $this->db->where('id', $id)->update('tx_ekstra_siswa', [
+            'status_bayar'  => $new_status,
+            'tanggal_bayar' => $tgl_bayar
+        ]);
+
+        return [
+            'status'        => true,
+            'new_status'    => $new_status,
+            'tanggal_bayar' => $tgl_bayar,
+            'message'       => 'Status pembayaran ' . $row['nama_siswa'] . ' berhasil diubah menjadi ' . strtoupper($new_status)
+        ];
+    }
+
+    /**
+     * Simpan data siswa ekstra (Tambah / Edit)
+     * @param array $data
+     * @param int|null $id
+     * @return bool
+     */
+    public function save_siswa_ekstra($data, $id = null) {
+        if ($id) {
+            $this->db->where('id', $id);
+            return $this->db->update('tx_ekstra_siswa', $data);
+        } else {
+            return $this->db->insert('tx_ekstra_siswa', $data);
+        }
+    }
+
+    /**
+     * Hapus data siswa ekstra
+     * @param int $id
+     * @return bool
+     */
+    public function delete_siswa_ekstra($id) {
+        return $this->db->where('id', $id)->delete('tx_ekstra_siswa');
+    }
+
+    /**
+     * Simpan cabang ekstra (Tambah / Edit)
+     * @param array $data
+     * @param int|null $ekstra_id
+     * @return bool
+     */
+    public function save_ekstra($data, $ekstra_id = null) {
+        if ($ekstra_id) {
+            $this->db->where('ekstra_id', $ekstra_id);
+            return $this->db->update('m_ekstra', $data);
+        } else {
+            return $this->db->insert('m_ekstra', $data);
+        }
+    }
+
+    // =========================================================================
+    // 11. CRUD HELPER: PERIODE PENGGAJIAN & PENYESUAIAN MANUAL (TAHAP 6)
+    // =========================================================================
+
+    /**
+     * Mengambil daftar seluruh periode penggajian
+     * @return array
+     */
+    public function get_all_periode() {
+        $sql = "SELECT a.*, 
+                       COUNT(b.gaji_id) as total_pegawai_dihitung,
+                       COALESCE(SUM(b.take_home_pay), 0.00) as total_thp_terhitung
+                FROM tx_gaji_periode a
+                LEFT JOIN tx_gaji_karyawan b ON a.periode_id = b.periode_id
+                GROUP BY a.periode_id
+                ORDER BY a.tahun DESC, a.bulan DESC";
+        return $this->db->query($sql)->result_array();
+    }
+
+    /**
+     * Mengambil data satu periode berdasarkan ID
+     * @param int $periode_id
+     * @return array|bool
+     */
+    public function get_periode_by_id($periode_id) {
+        return $this->db->get_where('tx_gaji_periode', ['periode_id' => $periode_id])->row_array();
+    }
+
+    /**
+     * Simpan / Tambah Periode Penggajian Baru
+     * @param array $data
+     * @param int|null $periode_id
+     * @return int|bool ID periode yang disimpan
+     */
+    public function save_periode($data, $periode_id = null) {
+        if ($periode_id) {
+            $this->db->where('periode_id', $periode_id)->update('tx_gaji_periode', $data);
+            return $periode_id;
+        } else {
+            $this->db->insert('tx_gaji_periode', $data);
+            return $this->db->insert_id();
+        }
+    }
+
+    /**
+     * Mengambil seluruh rincian slip gaji pegawai dalam suatu periode
+     * @param int $periode_id
+     * @return array
+     */
+    public function get_rincian_gaji_periode($periode_id) {
+        $sql = "SELECT a.*, 
+                       b.id_pegawai, b.nama_pegawai, b.nomor_pegawai, b.tanggal_mulai_kerja,
+                       c.status_kepegawaian, c.is_wali_kelas, c.nama_jabatan_struktural,
+                       c.nama_bank, c.nomor_rekening, c.nama_pemilik_rekening, c.customer_reff
+                FROM tx_gaji_karyawan a
+                JOIN m_pegawai b ON a.pegawai_id = b.pegawai_id
+                LEFT JOIN m_pegawai_gaji_setting c ON a.pegawai_id = c.pegawai_id
+                WHERE a.periode_id = ? AND b.is_del = 'n'
+                ORDER BY b.nama_pegawai ASC";
+        $rows = $this->db->query($sql, [$periode_id])->result_array();
+
+        // Ambil penyesuaian manual untuk masing-masing baris
+        foreach ($rows as &$r) {
+            $r['penyesuaian'] = $this->db->get_where('tx_gaji_komponen_manual', ['gaji_id' => $r['gaji_id']])->result_array();
+        }
+        return $rows;
+    }
+
+    /**
+     * Mengambil detail satu baris slip gaji karyawan beserta penyesuaian manual
+     * @param int $gaji_id
+     * @return array|bool
+     */
+    public function get_gaji_karyawan_by_id($gaji_id) {
+        $sql = "SELECT a.*, 
+                       b.id_pegawai, b.nama_pegawai, b.nomor_pegawai, b.tanggal_mulai_kerja,
+                       c.status_kepegawaian, c.is_wali_kelas, c.nama_jabatan_struktural,
+                       c.nama_bank, c.nomor_rekening, c.nama_pemilik_rekening, c.customer_reff,
+                       d.nama_periode, d.bulan, d.tahun, d.tanggal_awal, d.tanggal_akhir
+                FROM tx_gaji_karyawan a
+                JOIN m_pegawai b ON a.pegawai_id = b.pegawai_id
+                LEFT JOIN m_pegawai_gaji_setting c ON a.pegawai_id = c.pegawai_id
+                JOIN tx_gaji_periode d ON a.periode_id = d.periode_id
+                WHERE a.gaji_id = ?";
+        $row = $this->db->query($sql, [$gaji_id])->row_array();
+        if ($row) {
+            $row['penyesuaian'] = $this->db->get_where('tx_gaji_komponen_manual', ['gaji_id' => $gaji_id])->result_array();
+        }
+        return $row;
+    }
+
+    /**
+     * Tambah Penyesuaian Manual (Talangan, Kasbon, Transport, dll)
+     * @param array $data
+     * @return bool
+     */
+    public function add_penyesuaian_manual($data) {
+        $this->db->trans_start();
+
+        $this->db->insert('tx_gaji_komponen_manual', $data);
+        $gaji_id = $data['gaji_id'];
+
+        // Rekalkulasi gaji karyawan terkait
+        $this->recalculate_single_karyawan($gaji_id);
+
+        $this->db->trans_complete();
+        return $this->db->trans_status();
+    }
+
+    /**
+     * Hapus Penyesuaian Manual
+     * @param int $id ID tx_gaji_komponen_manual
+     * @return bool
+     */
+    public function delete_penyesuaian_manual($id) {
+        $this->db->trans_start();
+
+        $adj = $this->db->get_where('tx_gaji_komponen_manual', ['id' => $id])->row_array();
+        if ($adj) {
+            $gaji_id = $adj['gaji_id'];
+            $this->db->where('id', $id)->delete('tx_gaji_komponen_manual');
+            $this->recalculate_single_karyawan($gaji_id);
+        }
+
+        $this->db->trans_complete();
+        return $this->db->trans_status();
+    }
+
+    /**
+     * Rekalkulasi total penghasilan dan THP satu karyawan setelah penyesuaian manual
+     * @param int $gaji_id
+     * @return void
+     */
+    public function recalculate_single_karyawan($gaji_id) {
+        $gaji = $this->db->get_where('tx_gaji_karyawan', ['gaji_id' => $gaji_id])->row_array();
+        if (!$gaji) return;
+
+        // Ambil seluruh penyesuaian manual aktif
+        $adjs = $this->db->get_where('tx_gaji_komponen_manual', ['gaji_id' => $gaji_id])->result_array();
+
+        $talangan = 0.00;
+        $transport = 0.00;
+        $kesetaraan = 0.00;
+        $kasbon = 0.00;
+        $pot_talangan = 0.00;
+        $pot_lain = 0.00;
+
+        foreach ($adjs as $a) {
+            $nom = (float)$a['nominal'];
+            if ($a['jenis'] === 'penambahan') {
+                if ($a['kategori'] === 'talangan') $talangan += $nom;
+                else if ($a['kategori'] === 'transport') $transport += $nom;
+                else if ($a['kategori'] === 'kesetaraan') $kesetaraan += $nom;
+            } else if ($a['jenis'] === 'potongan') {
+                if ($a['kategori'] === 'kasbon') $kasbon += $nom;
+                else if ($a['kategori'] === 'talangan') $pot_talangan += $nom;
+                else $pot_lain += $nom;
+            }
+        }
+
+        $total_penghasilan_kotor = (float)$gaji['gaji_pokok'] +
+                                   (float)$gaji['tunj_masa_kerja'] +
+                                   (float)$gaji['tunj_wali_kelas'] +
+                                   (float)$gaji['tunj_struktural'] +
+                                   (float)$gaji['tunj_makan'] +
+                                   (float)$gaji['total_tunj_presensi'] +
+                                   (float)$gaji['honor_ekstra_lunas'] +
+                                   $kesetaraan +
+                                   $transport +
+                                   (float)$gaji['apresiasi_sertifikasi'] +
+                                   $talangan;
+
+        $total_potongan = $kasbon + $pot_talangan + $pot_lain;
+        $take_home_pay = $total_penghasilan_kotor - $total_potongan;
+
+        $this->db->where('gaji_id', $gaji_id)->update('tx_gaji_karyawan', [
+            'talangan_operasional'    => $talangan,
+            'tunj_transport'          => $transport,
+            'tunj_kesetaraan'         => $kesetaraan,
+            'potongan_kasbon'         => $kasbon,
+            'potongan_talangan'       => $pot_talangan,
+            'potongan_lainnya'        => $pot_lain,
+            'total_penghasilan_kotor' => $total_penghasilan_kotor,
+            'total_potongan'          => $total_potongan,
+            'take_home_pay'           => $take_home_pay
+        ]);
+
+        // Perbarui total pengeluaran pada header tx_gaji_periode
+        $periode_id = $gaji['periode_id'];
+        $sum = $this->db->query("SELECT SUM(take_home_pay) as tot FROM tx_gaji_karyawan WHERE periode_id = ?", [$periode_id])->row_array();
+        $total_periode = $sum ? (float)$sum['tot'] : 0.00;
+        $this->db->where('periode_id', $periode_id)->update('tx_gaji_periode', ['total_pengeluaran' => $total_periode]);
+    }
 }
