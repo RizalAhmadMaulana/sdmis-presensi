@@ -984,3 +984,118 @@ Setelah langkah 1, 2, dan 3 selesai:
 2. Buka web presensi guru:  
    `https://presensi.sdmis.sch.id/`  
    Login sebagai guru, dan sistem akan langsung aktif dengan pemindaian biometrik 5 sudut serta auto-capture kehadiran berbasis AI!
+
+---
+
+## 📄 Update: Pembuatan File Panduan Mandiri `tutorial_migrasi.md`
+
+Telah dibuat file panduan lengkap mandiri di root folder proyek:  
+`sdmis/tutorial_migrasi.md`
+
+### Rincian Isi File:
+1. **Langkah Git Push Lokal**: Perintah commit dan push perubahan dari direktori lokal `C:\xampp\htdocs\mis_dev\sdmis` ke branch `main`.
+2. **Langkah SSH Update Hostinger**:
+   - **Metode Standar**: `ssh sdmis-hostinger` $\to$ `cd /home/u983578927/domains/sdmis.sch.id/public_html/` $\to$ `git pull origin main` $\to$ `exit`.
+   - **Metode Cepat (One-Liner)**: `ssh sdmis-hostinger "cd ~/domains/sdmis.sch.id/public_html && git pull origin main"`.
+3. **Langkah Migrasi Database Browser**: Akses sekali klik `https://sdmis.sch.id/migrate_face` yang otomatis mengeksekusi migrasi ke database `u983578927_absensi` dengan jaminan *zero data loss*.
+4. **Verifikasi Akhir**: Langkah pengujian di portal admin (`/karyawan/data`), webapp presensi (`https://presensi.sdmis.sch.id`), dan suite uji biometrik (`/test_biometric`).
+5. **Troubleshooting**: Catatan izin kamera HTTPS, penanganan stash jika terjadi git conflict, dan cache browser guru.
+
+---
+
+## 🧠 Sesi Brainstorming & Perancangan Modul Penggajian (Mukafaah) Terintegrasi Presensi
+**Tanggal:** 19 November 2026  
+**Status:** Brainstorming & Desain Arsitektur (Tanpa Mengubah Kode Program Aktif)  
+
+### 1. Latar Belakang & Permintaan Client
+- Client meminta agar pembaruan ke server live Hostinger **ditunda sementara**, hingga seluruh fitur baru (khususnya sistem penggajian/mukafaah) selesai dikembangkan di lingkungan lokal.
+- Disediakan 2 file referensi riil:
+  1. `Mukafaah_November_2026_ok.xlsx` (Detail kalkulasi gaji 21 guru/karyawan, total pencairan Rp 22.956.000,-).
+  2. `Payroll_November_2026.xlsx` (Format mutasi transfer massal CMS Internet Banking Bank BRI/BSI).
+- Aturan Utama:
+  - Menu penggajian ditaruh **eksklusif di portal internal admin SDMIS (`https://sdmis.sch.id`)**.
+  - **100% tersembunyi dari guru** di webapp presensi (`https://presensi.sdmis.sch.id`).
+  - Terintegrasi langsung dengan absensi biometrik (`tx_absensi`):
+    - Bonus kehadiran tepat waktu Rp 50.000 (jam masuk acuan 06.30 WIB, toleransi terlambat max 3x per bulan; jika > 3x maka tunjangan presensi HANGUS).
+    - Tunjangan uang makan dihitung dari jumlah kedatangan riil (Rp 5.000/hari untuk guru lama > 3 tahun, Rp 2.500/hari untuk guru baru <= 3 tahun).
+    - Tunjangan masa kerja dihitung otomatis dari `tanggal_mulai_kerja` di `m_pegawai` (Rp 15.000/tahun).
+    - Fitur penyesuaian (honor ekstra, transport luar kota/dinas, potongan kasbon, talangan sekolah).
+    - Cetak slip gaji perorangan & rekapitulasi.
+    - Ekspor 1-klik format mutasi perbankan CMS BRI / BSI.
+
+### 2. Output Dokumen yang Dihasilkan
+- **[PRD_PENGGAJIAN_MUKAFAAH.md](file:///C:/xampp/htdocs/mis_dev/sdmis/PRD_PENGGAJIAN_MUKAFAAH.md)**: Dokumen spesifikasi kebutuhan produk lengkap setebal 8 bab yang mencakup:
+  1. Latar Belakang & Tujuan.
+  2. Analisis Data Sumber Excel & Breakdown Komponen.
+  3. Arsitektur Skema Database Relasional (`m_gaji_setting_global`, `m_pegawai_gaji_setting`, `tx_gaji_periode`, `tx_gaji_karyawan`, `tx_gaji_komponen_manual`).
+  4. Algoritma & Logika Integrasi Kehadiran (`tx_absensi` & `tx_request_izin`).
+  5. Rancangan Menu & Wireframe UI/UX Portal SDMIS.
+  6. Spesifikasi Export Mutasi Bank BRI & BSI CMS.
+  7. Urutan Tahap Implementasi Kode Program (8 Tahap Terstruktur).
+  8. Kesimpulan & Rekomendasi Diskusi.
+- **Update [tutorial_migrasi.md](file:///C:/xampp/htdocs/mis_dev/sdmis/tutorial_migrasi.md)**: Menambahkan catatan penggabungan rilis Face Recognition dan Penggajian untuk deploy produksi Hostinger di kemudian hari.
+
+---
+
+## 💡 Pembaruan PRD v2.0: Penyesuaian 12 SOP Alur Penggajian Nyata Mentari
+**Tanggal:** 25 November 2026  
+**Status:** Diskusi & Pembaruan Spesifikasi Kebutuhan Produk (PRD)
+
+### Poin-Poin Kunci dari Manajemen Mentari:
+1. **Penyesuaian Bonus Presensi Bertingkat (Two-Tier Bonus)**:
+   - **Tier 1 (Standar 06.45 WIB + 3 menit toleransi = 06.48 WIB)**: Keterlambatan $\le 3$ kali per bulan $\to$ Dapat bonus **Rp 50.000,-**.
+   - **Tier 2 (Super Early 06.30 WIB)**: Datang setelah 06.30 tidak lebih dari 3 kali per bulan $\to$ Dapat **TAMBAHAN Rp 50.000,-**.
+   - *Total bonus kehadiran tepat waktu bisa mencapai **Rp 100.000,-** per guru.*
+2. **Master Hari Khusus Pulang Cepat**: Menambahkan pengecualian tanggal khusus agar absensi pulang lebih awal pada hari agenda sekolah tidak dihitung sebagai pelanggaran.
+3. **Manajemen Ekstrakurikuler Berbasis Status Pembayaran Siswa**:
+   - Honor guru ekstra hanya cair jika siswa sudah menyelesaikan administrasi di awal bulan.
+   - Tagihan siswa belum lunas akan menangguhkan honor guru pengampu (carry-over otomatis ke bulan depan).
+4. **Honor Tasmi' / Tahfidz (Kak Anas & Pak Rico)**: Pencatatan sesi kehadiran/tugas tasmi'.
+5. **Pencatatan Talangan Operasional & Kasbon**: Form talangan operasional (Pak Anwar, Pak Nuki, Bunda Dewi) dan potongan kasbon.
+6. **Alur Rekonsiliasi**: Validasi kesesuaian antara rincian per guru, tabel mukafaah, dan total payroll bank sebelum transfer.
+
+### File yang Diperbarui:
+- **[PRD_PENGGAJIAN_MUKAFAAH.md](file:///C:/xampp/htdocs/mis_dev/sdmis/PRD_PENGGAJIAN_MUKAFAAH.md)**: Telah diperbarui ke versi 2.0 mencakup seluruh 12 alur kerja SOP nyata yayasan.
+
+---
+
+## 🚀 Tahap 1: Migration Database Dinamis & Seeder Modul Penggajian (Selesai)
+**Tanggal:** 25 November 2026  
+**Status:** Berhasil Diimplementasikan  
+
+### A. Tujuan:
+Membangun controller migrasi mandiri `Migrate_payroll.php` dan skrip SQL `database_migration_payroll.sql` untuk membuat seluruh tabel baru modul penggajian secara aman (`IF NOT EXISTS`), mendaftarkan menu baru di `m_menu` dan `m_role_access`, serta menginjeksi seeder konfigurasi aturan presensi 2-tier dan data 21 guru dari Excel acuan November 2026.
+
+### B. Daftar File yang Ditambahkan & Dimodifikasi:
+1. `sdmis/application/controllers/Migrate_payroll.php` (**File Baru**): Controller auto-migration browser sekali klik dengan antarmuka laporan status real-time.
+2. `sdmis/database_migration_payroll.sql` (**File Baru**): Skrip SQL mandiri 100% aman untuk opsi impor via phpMyAdmin di Hostinger.
+3. `sdmis/tutorial_migrasi.md` (**Dimodifikasi**): Menambahkan panduan eksekusi migrasi Tahap 1 untuk lingkungan lokal (`http://localhost/mis_dev/sdmis/migrate_payroll`) dan server produksi Hostinger (`https://sdmis.sch.id/migrate_payroll`).
+4. `sdmis/session.md` (**Dimodifikasi**): Pencatatan detail perubahan kode program Tahap 1.
+
+### C. Rincian 8 Tabel Baru yang Dibuat:
+1. `m_gaji_setting_global`: Parameter acuan jam masuk (06.45 toleransi 3 menit = 06.48, dan 06.30), nominal bonus Tier 1 & Tier 2, tarif makan, tarif masa kerja, rekening sumber debit yayasan.
+2. `m_gaji_hari_khusus`: Kalender pengecualian kepulangan lebih awal.
+3. `m_pegawai_gaji_setting`: Data master gaji pokok, status GTY, tunjangan struktural, dan detail rekening bank perorangan.
+4. `m_ekstra`: Master cabang ekstrakurikuler (Panahan, Sepatu Roda, Renang, Tahfidz).
+5. `tx_ekstra_siswa`: Tracking data siswa ekstra, status bayar lunas/pending, dan sistem penangguhan piutang ekstra (carry-over).
+6. `tx_gaji_periode`: Header transaksi penggajian bulanan dan status cut-off presensi.
+7. `tx_gaji_karyawan`: Detail slip gaji lengkap dengan audit kehadiran, frekuensi telat, status bonus Tier 1 & Tier 2, talangan, kasbon, dan THP bersih.
+8. `tx_gaji_komponen_manual`: Item penyesuaian fleksibel (adjustment talangan Pak Anwar/Nuki/Dewi, transport, kasbon).
+
+### D. Pendaftaran Menu & Hak Akses Role:
+- **Parent Menu**: `Penggajian` (Icon: `ti ti-wallet`, link: `#`, tipe: 1, urutan: 8).
+- **Submenu**:
+  1. `Pengaturan Aturan & Tarif` (`gaji/setting/`)
+  2. `Master Gaji & Rekening` (`gaji/karyawan/`)
+  3. `Manajemen Ekstra & Siswa` (`gaji/ekstra/`)
+  4. `Periode & Hitung Gaji` (`gaji/periode/`)
+  5. `Rekonsiliasi & Balance` (`gaji/rekonsiliasi/`)
+  6. `Slip Gaji & Rekapitulasi` (`gaji/laporan/`)
+  7. `Export Mutasi Bank` (`gaji/export_bank/`)
+- **Hak Akses**: Diberikan kepada Superadmin (`role_id = 1`) dan role Keuangan/Bendahara (`role_id = 2`).
+
+### E. Seeder Profil 21 Pegawai & Rekening Bank:
+- Menyinkronkan data 21 guru dari Excel November 2026 ke dalam `m_pegawai` dan `m_pegawai_gaji_setting`, lengkap dengan nomor rekening Bank BRI dan BSI, serta Customer Reference unik (`MTNOVE001` - `MTNOVE021`).
+
+
+

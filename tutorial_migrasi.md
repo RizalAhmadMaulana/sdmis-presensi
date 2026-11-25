@@ -1,0 +1,221 @@
+# 🚀 Panduan Migrasi & Deploy Fitur Face Recognition ke Server Produksi (Hostinger)
+
+**Proyek:** SD Mentari Islamic School (Portal SDMIS & Webapp TemanMIS)  
+**Database Produksi:** `u983578927_absensi` (Hostinger MariaDB)  
+**Domain Utama:** `https://sdmis.sch.id`  
+**Subdomain Presensi:** `https://presensi.sdmis.sch.id`  
+**Pembaruan:** Sistem Absensi Biometrik Wajah 5 Sudut & Verifikasi AI Anti-Titip Absen  
+
+---
+
+## 📌 Ringkasan Alur Deployment
+
+```
+[Komputer Lokal / Dev]                [GitHub Repository]                [Server Hostinger Live]
+C:\xampp\htdocs\mis_dev\sdmis  ──>  git push origin main  ──>  git pull via SSH (sdmis-hostinger)
+                                                                             │
+                                                                             ▼
+                                                                Browser: https://sdmis.sch.id/migrate_face
+                                                                (Auto-Migrate Database Sekali Klik)
+```
+
+Seluruh kode program telah dirancang **100% dinamis**, secara otomatis mendeteksi apakah aplikasi sedang berjalan di lingkungan lokal (`localhost` / IP LAN) atau lingkungan produksi live (`https://sdmis.sch.id`). Anda **tidak perlu mengubah file konfigurasi atau baris kode apa pun** saat deploy ke Hostinger.
+
+---
+
+## 🛠️ Langkah 1: Push Pembaruan dari Komputer Lokal ke GitHub
+
+Buka terminal **PowerShell**, **Git Bash**, atau **Terminal VSCode** di komputer lokal Anda:
+
+```bash
+# 1. Pindah ke direktori proyek lokal
+cd "C:\xampp\htdocs\mis_dev\sdmis"
+
+# 2. Cek status perubahan file
+git status
+
+# 3. Tambahkan seluruh file perubahan ke staging Git
+git add .
+
+# 4. Buat commit perubahan
+git commit -m "feat: complete biometric face recognition, attendance auto-capture & responsive UI"
+
+# 5. Push ke repository GitHub
+git push origin main
+```
+> *(Catatan: Jika branch utama di repository Anda bernama `master`, gunakan `git push origin master`)*
+
+---
+
+## 🌐 Langkah 2: Update Server Produksi SDMIS via SSH Terminal VSCode
+
+Setelah commit berhasil di-push ke GitHub, buka **Terminal di VSCode** (posisi di folder lokal Anda) untuk menarik update ke server Hostinger.
+
+Pilih salah satu cara di bawah ini:
+
+### Opsi A: Cara Standar (Interaktif)
+Masuk ke sesi terminal server Hostinger secara bertahap:
+
+```bash
+# 1. Hubungkan ke server Hostinger via konfigurasi SSH
+ssh sdmis-hostinger
+
+# 2. Masuk ke direktori web utama SDMIS
+cd /home/u983578927/domains/sdmis.sch.id/public_html/
+
+# 3. Tarik pembaruan terbaru dari GitHub
+git pull origin main
+
+# 4. Keluar dari sesi SSH
+exit
+```
+
+---
+
+### Opsi B: Cara Cepat (One-Liner Execution - Sangat Direkomendasikan ⚡)
+Jalankan satu baris perintah langsung dari terminal lokal VSCode tanpa harus login interaktif:
+
+```bash
+ssh sdmis-hostinger "cd ~/domains/sdmis.sch.id/public_html && git pull origin main"
+```
+
+Perintah di atas akan otomatis menghubungkan SSH, berpindah direktori, dan menjalankan `git pull origin main` dalam satu kali tekan tombol Enter!
+
+---
+
+## 🗄️ Langkah 3: Eksekusi Migrasi Database Live Sekali Klik
+
+Setelah proses `git pull` selesai di Hostinger, buka browser (Chrome / Edge / Safari), lalu akses tautan migrasi berikut:
+
+```
+https://sdmis.sch.id/migrate_face
+```
+*(Atau `https://sdmis.sch.id/index.php/migrate_face` jika rewrite URL belum aktif)*
+
+### Apa yang Dilakukan oleh Skrip Ini Secara Otomatis?
+1. **Deteksi Otomatis Lingkungan Produksi**: Sistem mendeteksi host `sdmis.sch.id` dan otomatis menyambungkan ke database aktif Hostinger: **`u983578927_absensi`**.
+2. **Pembuatan Tabel Biometrik**: Membuat tabel baru `m_pegawai_face` untuk menyimpan 5 sudut vektor biometrik wajah guru (128-d float array).
+3. **Pembaruan Tabel Karyawan**: Menambahkan kolom `is_face_registered` (default `'n'`) pada tabel `m_pegawai`.
+4. **Pembaruan Tabel Absensi**: Menambahkan kolom audit `face_similarity_score` dan `face_status` pada tabel `tx_absensi`.
+5. **Pembuatan Folder Storage**: Otomatis membuat folder penyimpanan foto wajah sampel di `assets/uploaded/faces/` beserta proteksi `index.html`.
+6. **Laporan Dashboard Hijau**: Menampilkan status **"SUKSES SEMUA"** di layar browser Anda.
+
+> [!NOTE]
+> **Zero Data Loss Guarantee**:  
+> Semua query migrasi menggunakan klausul aman `IF NOT EXISTS` dan `SHOW COLUMNS LIKE`.  
+> Tidak ada tabel yang di-drop atau di-reset. Seluruh 9.280+ riwayat absensi, data guru, dan data siswa yang ada di Hostinger **100% aman dan tidak tersentuh**.
+
+---
+
+### 🛡️ Opsi Alternatif Manual (Jika Tidak Melalui Browser):
+Jika Anda lebih suka menjalankan query SQL langsung di cPanel Hostinger:
+1. Login ke panel Hostinger $\to$ Buka **phpMyAdmin**.
+2. Pilih database **`u983578927_absensi`**.
+3. Buka tab **SQL**.
+4. Salin dan tempel isi file `database_migration_face.sql` yang ada di proyek ini.
+5. Klik **Go / Kirim**.
+
+---
+
+## ✅ Langkah 4: Verifikasi & Uji Coba di Server Live Hostinger
+
+Setelah langkah 1, 2, dan 3 selesai, lakukan verifikasi akhir:
+
+### 1. Cek Portal Admin SDMIS
+Buka di browser:
+```
+https://sdmis.sch.id/karyawan/data
+```
+- Login sebagai Admin.
+- Buka menu **Karyawan** $\to$ **Data Karyawan**.
+- Pastikan kolom baru **"FACE BIOMETRIK"** sudah tampil di tabel dengan tombol status *(Belum Rekam / Menunggu Approval / Terverifikasi)*.
+
+### 2. Cek Webapp Presensi Guru (TemanMIS)
+Buka di browser smartphone atau desktop:
+```
+https://presensi.sdmis.sch.id/
+```
+- Login sebagai akun guru.
+- Di halaman beranda, periksa widget Face ID tampil rapi di bawah kartu tanggal.
+- Tombol **"Absen Masuk"** atau tombol floating **"Face ID"** dapat digunakan untuk pemindaian biometrik 5 sudut dan auto-capture kehadiran.
+
+### 3. Cek Halaman Diagnostik Biometrik (Opsional)
+Buka di browser:
+```
+https://sdmis.sch.id/test_biometric
+```
+- Menguji kesiapan modul Face-API di server hosting serta simulasi pencocokan wajah guru live.
+
+---
+
+## ⚠️ Troubleshooting & Catatan Penting
+
+1. **Izin Akses Kamera di Smartphone**:
+   - PWA / Webapp presensi membutuhkan koneksi **HTTPS** agar browser memberikan izin kamera (`navigator.mediaDevices.getUserMedia`). Karena domain Hostinger `https://sdmis.sch.id` dan `https://presensi.sdmis.sch.id` sudah menggunakan SSL aktif, izin kamera akan berjalan lancar.
+2. **Jika Muncul Git Conflict saat `git pull` di Hostinger**:
+   Jika ada file log atau cache di Hostinger yang bentrok, jalankan perintah ini via SSH:
+   ```bash
+   ssh sdmis-hostinger "cd ~/domains/sdmis.sch.id/public_html && git stash && git pull origin main"
+   ```
+3. **Pembersihan Cache Browser Guru**:
+   Setelah update di Hostinger, ingatkan guru atau admin untuk melakukan **Hard Refresh** (atau hapus cache browser pada handphone) agar aset JavaScript dan CSS termutakhir langsung dimuat oleh browser.
+
+---
+*Dokumentasi ini dibuat otomatis sebagai panduan resmi deployment SD Mentari Islamic School.*
+
+## 📋 Catatan Pembaruan Rilis Gabungan (Face Recognition + Modul Penggajian)
+> [!IMPORTANT]
+> Sesuai instruksi dan konsultasi dengan pihak client/sekolah:
+> - **Pembaruan server Hostinger produksi DITUNDA SEMENTARA** hingga seluruh penambahan fitur selesai dikembangkan dan diuji coba tuntas di lingkungan local.
+> - **Fitur berikutnya yang sedang dibangun:** **Sistem Penggajian & Mukafaah Guru/Karyawan Terintegrasi Presensi Biometrik & Export Bank Payroll (BRI/BSI)**.
+> - Detail arsitektur, skema database, rumus kehadiran 2-tier, dan alur implementasi modul penggajian telah disusun lengkap di dokumen: [PRD_PENGGAJIAN_MUKAFAAH.md](file:///C:/xampp/htdocs/mis_dev/sdmis/PRD_PENGGAJIAN_MUKAFAAH.md).
+
+---
+
+## 💰 Panduan Migrasi Tahap 1: Modul Penggajian & Mukafaah
+
+### A. Cara Menjalankan Migrasi di Komputer Lokal (Localhost)
+Buka browser Anda dan akses salah satu URL berikut:
+```
+http://localhost/mis_dev/sdmis/migrate_payroll
+```
+*(Atau `http://localhost/sdmis/migrate_payroll` tergantung konfigurasi folder Apache XAMPP Anda)*
+
+Skrip otomatis ini akan:
+1. Membuat 8 tabel baru penggajian (`m_gaji_setting_global`, `m_gaji_hari_khusus`, `m_pegawai_gaji_setting`, `m_ekstra`, `tx_ekstra_siswa`, `tx_gaji_periode`, `tx_gaji_karyawan`, `tx_gaji_komponen_manual`).
+2. Mendaftarkan menu induk **"Penggajian (Mukafaah)"** beserta 7 submenunya ke `m_menu` dan memberikan izin akses role superadmin di `m_role_access`.
+3. Memasukkan konfigurasi default aturan 2-tier presensi (jam masuk 06.45 toleransi 3 menit -> 06.48, dan jam super early 06.30).
+4. Menyinkronkan dan mengisi seeder profil 21 guru dan nomor rekening bank dari Excel acuan November 2026.
+5. Menampilkan dashboard laporan status berwarna hijau **"BERHASIL SEMPURNA"**.
+
+---
+
+### B. Cara Menerapkan Update Tahap 1 di Server Produksi Hostinger
+Nantinya, setelah seluruh pengembangan fitur selesai di local, langkah deploy ke Hostinger sangat mudah:
+
+#### Langkah 1: Push dari Lokal & Pull di Hostinger
+```bash
+# 1. Di Terminal Komputer Lokal
+cd "C:\xampp\htdocs\mis_dev\sdmis"
+git add .
+git commit -m "feat: complete payroll module tahap 1 database & seeders"
+git push origin main
+
+# 2. Di SSH Terminal VSCode Hostinger
+ssh sdmis-hostinger "cd ~/domains/sdmis.sch.id/public_html && git pull origin main"
+```
+
+#### Langkah 2: Eksekusi Migrasi Database Live Sekali Klik
+Buka browser Anda dan akses URL:
+```
+https://sdmis.sch.id/migrate_payroll
+```
+*(Skrip otomatis mendeteksi database produksi `u983578927_absensi` dan membuat tabel baru tanpa risiko kehilangan data lama)*.
+
+#### Langkah 3 (Opsi Manual): Impor File SQL
+Jika Anda lebih suka menjalankan query via phpMyAdmin cPanel Hostinger:
+1. Buka phpMyAdmin $\to$ Pilih database **`u983578927_absensi`**.
+2. Masuk ke tab **SQL**.
+3. Salin dan tempel isi file `database_migration_payroll.sql` $\to$ Klik **Kirim / Go**.
+
+
