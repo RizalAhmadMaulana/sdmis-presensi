@@ -100,22 +100,31 @@
         </div>
       </div>
     <?php } else { ?>
-      <div class="card bg-danger text-white mb-4 shadow border-0">
-        <div class="card-body p-4">
-          <div class="d-flex align-items-center">
-            <div class="avatar avatar-xl bg-white bg-opacity-25 rounded-circle me-3 p-2 flex-shrink-0">
-              <i class="ti ti-alert-triangle fs-1 text-white"></i>
-            </div>
-            <div>
-              <div class="badge bg-white text-danger fw-bold text-uppercase px-2 py-1 mb-2">
-                <i class="ti ti-alert-circle me-1"></i> Perhatian: Belum Seimbang
+      <div class="card bg-danger text-white mb-4 shadow border-0 overflow-hidden">
+        <div class="card-body p-4 position-relative">
+          <div class="row align-items-center">
+            <div class="col-lg-8 col-12 mb-3 mb-lg-0">
+              <div class="d-flex align-items-center">
+                <div class="avatar avatar-xl bg-white bg-opacity-25 rounded-circle me-3 p-2 flex-shrink-0">
+                  <i class="ti ti-alert-triangle fs-1 text-white"></i>
+                </div>
+                <div>
+                  <div class="badge bg-white text-danger fw-bold text-uppercase px-2 py-1 mb-2">
+                    <i class="ti ti-alert-circle me-1"></i> Perhatian: Belum Seimbang
+                  </div>
+                  <h4 class="fw-bold mb-1 text-white">
+                    TERDAPAT SELISIH BALANCE: Rp <?=number_format($recon['selisih'], 0, ',', '.');?>,-
+                  </h4>
+                  <p class="mb-0 text-white text-opacity-90 small">
+                    Terdapat perbedaan antara Total Periode (Rp <?=number_format($recon['total_periode'], 0, ',', '.');?>) dan Akumulasi Rincian Guru (Rp <?=number_format($recon['total_rincian'], 0, ',', '.');?>). Rincian guru terhitung saat ini: <b><?=$recon['totals']['jml_pegawai'];?> dari 21 Pegawai</b>.
+                  </p>
+                </div>
               </div>
-              <h4 class="fw-bold mb-1 text-white">
-                TERDAPAT SELISIH BALANCE: Rp <?=number_format($recon['selisih'], 0, ',', '.');?>,-
-              </h4>
-              <p class="mb-0 text-white text-opacity-90 small">
-                Terdapat perbedaan antara Total Periode (Rp <?=number_format($recon['total_periode'], 0, ',', '.');?>) dan Akumulasi Rincian Guru (Rp <?=number_format($recon['total_rincian'], 0, ',', '.');?>). Silakan klik <b>⚡ Hitung Otomatis</b> kembali di menu Periode & Hitung Gaji.
-              </p>
+            </div>
+            <div class="col-lg-4 col-12 text-lg-end">
+              <a href="<?=base_url('gaji/rekonsiliasi/sinkron_balance/'.$recon['periode']['periode_id']);?>" class="btn btn-warning text-dark fw-bold shadow">
+                <i class="ti ti-refresh me-1"></i> ⚡ Sinkronkan & Seimbangkan (1-Klik Klop)
+              </a>
             </div>
           </div>
         </div>

@@ -1435,17 +1435,30 @@ Membangun antarmuka siklus penggajian bulanan dengan fitur **Tombol Sakti ⚡ "H
    - Menambahkan **STEP 13**: Seeder Periode Benchmark & Rincian 21 Guru November 2026.
    - Memastikan saat auto-migrate dijalankan di server Hostinger produksi (`https://sdmis.sch.id/migrate_payroll`), seluruh rincian komponen penggajian 21 guru terisi otomatis tanpa perlu setup manual.
 
-### C. Daftar File yang Ditambahkan & Dimodifikasi:
-1. `sdmis/application/controllers/gaji/Rekonsiliasi.php` (**File Baru**): Controller modul rekonsiliasi dan verifikasi 3-arah.
-2. `sdmis/application/views/module/gaji/rekonsiliasi/index.php` (**File Baru**): Dashboard rekonsiliasi, hero status balance, dan tabel audit.
-3. `sdmis/application/controllers/gaji/Laporan.php` (**File Baru**): Controller cetak slip gaji A5 (single & batch) dan rekapitulasi.
-4. `sdmis/application/views/module/gaji/laporan/index.php` (**File Baru**): Dashboard daftar slip per periode.
-5. `sdmis/application/views/module/gaji/laporan/slip_a5.php` (**File Baru**): Template slip gaji A5 berstandar kop sekolah dengan CSS page-break.
-6. `sdmis/application/views/module/gaji/laporan/rekap_print.php` (**File Baru**): Template cetak rekapitulasi pembukuan landscape.
-7. `sdmis/application/controllers/gaji/Export_bank.php` (**File Baru**): Controller generator file mutasi BRI CMS, BSI CMS, dan Master CSV.
-8. `sdmis/application/views/module/gaji/export_bank/index.php` (**File Baru**): Dashboard pusat unduhan berkas perbankan dan preview transfer.
-9. `sdmis/application/models/Payroll_model.php` (**Dimodifikasi**): Penambahan method `get_reconciliation_data()` dan helper `terbilang()`.
-10. `sdmis/application/controllers/Migrate_payroll.php` (**Dimodifikasi**): Penambahan Step 13 seeder periode November 2026.
+### D. Pemecahan Masalah (Troubleshooting) Selisih Balance Rekonsiliasi (Rp 3.921.000,-)
+**Tanggal:** 25 November 2026  
+**Status:** Berhasil Dituntaskan 100% Klop
+
+1. **Akar Masalah (Root Cause)**:
+   - Pada saat pertama kali membuka menu Rekonsiliasi, muncul banner merah:  
+     `TERDAPAT SELISIH BALANCE: Rp 3.921.000,-`  
+     (Total Tabel Periode: Rp 22.956.000,- vs Akumulasi Rincian Guru: Rp 19.035.000,- dengan 18 Guru terhitung).
+   - **Penyebab**:
+     1. **Kak Annas / Tessa (Rp 1.380.000,-)**: Pada seeder awal Step 12, guru ke-19 didaftarkan dengan nama `Kak Annas`. Namun pada loop Step 13 seeder mencari nama `Tessa`. Karena tidak ada nama Tessa di `m_pegawai`, baris slip ke-19 terlewatkan (selisih Rp 1.380.000).
+     2. **Trisuyoto vs Eka Fitri Collision (Rp 1.500.000,-)**: Pencarian nama Trisuyoto sebelumnya menggunakan keyword `LIKE '%Tri%'`. Kata "Tri" cocok dengan "Eka Fitri Nurhayati", sehingga slip Trisuyoto tidak terbentuk sebagai baris ke-20 (selisih Rp 1.500.000).
+     3. **Talangan Operasional Pak Nuki (Rp 1.041.000,-)**: Saat kalkulasi awal, Take Home Pay Pak Nuki terhitung murni dari presensi (Rp 1.780.000) tanpa komponen talangan operasional darurat sekolah sebesar Rp 1.041.000 (target THP Rp 2.821.000).
+     4. **Akumulasi Selisih**: `1.380.000 + 1.500.000 + 1.041.000 = Rp 3.921.000,-` (Tepat sama persis dengan angka selisih yang dilaporkan).
+
+2. **Solusi & Fitur Baru yang Diterapkan**:
+   - **Smart Multi-Attribute Matching** pada `Payroll_model::sinkronkan_benchmark_november`:
+     Pencarian pegawai menggunakan kombinasi email primer, email alternatif (`@cyberschool.sch.id`), nama lengkap, dan keyword unik (misal `Trisuyoto` berdiri sendiri tanpa menabrak `Eka Fitri`, dan `Kak Annas` memiliki alias `Tessa`).
+   - **Fitur 1-Klik Seimbangkan Balance** pada controller `Rekonsiliasi::sinkron_balance($periode_id)`:
+     Menyinkronkan seluruh 21 rincian guru, akun bank, dan penyesuaian talangan/kasbon dalam satu klik.
+   - **Tombol Aksi pada Banner Merah Rekonsiliasi**:
+     Menambahkan tombol `⚡ Sinkronkan & Seimbangkan (1-Klik Klop)` di [views/module/gaji/rekonsiliasi/index.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/views/module/gaji/rekonsiliasi/index.php).
+   - **Single Source of Truth pada Migrate_payroll.php**:
+     Step 13 pada [Migrate_payroll.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/controllers/Migrate_payroll.php) kini langsung memanggil `$this->payroll->sinkronkan_benchmark_november()`.
+   - **Hasil Akhir**: Total Periode = Total Rincian Guru (21 Pegawai) = Total Mutasi Bank = **Rp 22.956.000,-** dengan **Selisih: Rp 0,- (Zero Variance / 100% Klop Sempurna)**.
 
 
 

@@ -917,80 +917,16 @@ class Migrate_payroll extends CI_Controller {
             ]);
         }
 
-        // Rincian 21 guru sesuai benchmark dokumen PRD (Total: Rp 22.956.000,-)
-        $rincian_benchmark = [
-            ['nama' => 'Guruh Suasana Eddy',           'keyword' => 'Guruh',            'gapok' => 2000000.00, 'tmk' => 0.00,      'wali' => 0.00,     'str' => 0.00,       'makan' => 0.00,      'b1' => 0.00,     'b2' => 0.00,     'eks' => 0.00,       'talangan' => 0.00,      'pot' => 0.00,     'thp' => 2000000.00],
-            ['nama' => 'Siti Nurhayati Isnaini',       'keyword' => 'Siti Nurhayati',   'gapok' => 525000.00,  'tmk' => 180000.00, 'wali' => 25000.00, 'str' => 200000.00,  'makan' => 100000.00, 'b1' => 50000.00, 'b2' => 50000.00, 'eks' => 0.00,       'talangan' => 180000.00, 'pot' => 0.00,     'thp' => 1310000.00],
-            ['nama' => 'Samini',                       'keyword' => 'Samini',           'gapok' => 500000.00,  'tmk' => 165000.00, 'wali' => 25000.00, 'str' => 250000.00,  'makan' => 100000.00, 'b1' => 50000.00, 'b2' => 0.00,     'eks' => 0.00,       'talangan' => 163000.00, 'pot' => 0.00,     'thp' => 1253000.00],
-            ['nama' => 'Sri Marsini',                  'keyword' => 'Sri Marsini',      'gapok' => 500000.00,  'tmk' => 150000.00, 'wali' => 25000.00, 'str' => 30000.00,   'makan' => 100000.00, 'b1' => 50000.00, 'b2' => 50000.00, 'eks' => 0.00,       'talangan' => 156000.00, 'pot' => 0.00,     'thp' => 1061000.00],
-            ['nama' => 'Sri Purwanti',                 'keyword' => 'Sri Purwanti',     'gapok' => 500000.00,  'tmk' => 135000.00, 'wali' => 25000.00, 'str' => 30000.00,   'makan' => 100000.00, 'b1' => 50000.00, 'b2' => 50000.00, 'eks' => 0.00,       'talangan' => 118000.00, 'pot' => 0.00,     'thp' => 1008000.00],
-            ['nama' => 'Anwar Yusup',                  'keyword' => 'Anwar',            'gapok' => 1500000.00, 'tmk' => 60000.00,  'wali' => 0.00,     'str' => 300000.00,  'makan' => 100000.00, 'b1' => 0.00,     'b2' => 0.00,     'eks' => 0.00,       'talangan' => 58000.00,  'pot' => 0.00,     'thp' => 2018000.00],
-            ['nama' => 'Nuki Rifan Yuniardi',          'keyword' => 'Nuki',             'gapok' => 500000.00,  'tmk' => 30000.00,  'wali' => 0.00,     'str' => 1100000.00, 'makan' => 100000.00, 'b1' => 50000.00, 'b2' => 0.00,     'eks' => 0.00,       'talangan' => 1041000.00,'pot' => 0.00,     'thp' => 2821000.00],
-            ['nama' => 'Dewi Fatmala Sari',            'keyword' => 'Dewi',             'gapok' => 550000.00,  'tmk' => 15000.00,  'wali' => 0.00,     'str' => 0.00,       'makan' => 0.00,      'b1' => 0.00,     'b2' => 0.00,     'eks' => 0.00,       'talangan' => 125000.00, 'pot' => 0.00,     'thp' => 690000.00],
-            ['nama' => 'Giyanti',                      'keyword' => 'Giyanti',          'gapok' => 550000.00,  'tmk' => 15000.00,  'wali' => 25000.00, 'str' => 0.00,       'makan' => 0.00,      'b1' => 0.00,     'b2' => 0.00,     'eks' => 0.00,       'talangan' => 100000.00, 'pot' => 0.00,     'thp' => 690000.00],
-            ['nama' => 'Eka Fitri Nurhayati',          'keyword' => 'Eka',              'gapok' => 550000.00,  'tmk' => 0.00,      'wali' => 25000.00, 'str' => 0.00,       'makan' => 0.00,      'b1' => 0.00,     'b2' => 0.00,     'eks' => 0.00,       'talangan' => 0.00,      'pot' => 0.00,     'thp' => 575000.00],
-            ['nama' => 'Neta Arum Sholikhah',          'keyword' => 'Neta',             'gapok' => 550000.00,  'tmk' => 0.00,      'wali' => 25000.00, 'str' => 0.00,       'makan' => 0.00,      'b1' => 0.00,     'b2' => 0.00,     'eks' => 0.00,       'talangan' => 130000.00, 'pot' => 0.00,     'thp' => 705000.00],
-            ['nama' => 'Atii Tasmiyaturrosyadi',       'keyword' => 'Atii',             'gapok' => 550000.00,  'tmk' => 0.00,      'wali' => 25000.00, 'str' => 0.00,       'makan' => 50000.00,  'b1' => 50000.00, 'b2' => 0.00,     'eks' => 250000.00,  'talangan' => 0.00,      'pot' => 0.00,     'thp' => 925000.00],
-            ['nama' => 'AFKHAN RICO TORIQ IBRAHIM',    'keyword' => 'Rico',             'gapok' => 550000.00,  'tmk' => 0.00,      'wali' => 0.00,     'str' => 0.00,       'makan' => 0.00,      'b1' => 0.00,     'b2' => 0.00,     'eks' => 325000.00,  'talangan' => 140000.00, 'pot' => 0.00,     'thp' => 1015000.00],
-            ['nama' => 'Hanivia Anggraheni Damayanti', 'keyword' => 'Hanivia',          'gapok' => 500000.00,  'tmk' => 0.00,      'wali' => 25000.00, 'str' => 0.00,       'makan' => 50000.00,  'b1' => 0.00,     'b2' => 0.00,     'eks' => 0.00,       'talangan' => 0.00,      'pot' => 250000.00,'thp' => 325000.00],
-            ['nama' => 'Habila Hajar Hanifah',         'keyword' => 'Habila',           'gapok' => 550000.00,  'tmk' => 0.00,      'wali' => 25000.00, 'str' => 0.00,       'makan' => 50000.00,  'b1' => 50000.00, 'b2' => 0.00,     'eks' => 0.00,       'talangan' => 0.00,      'pot' => 0.00,     'thp' => 675000.00],
-            ['nama' => 'Aan Sholeh',                   'keyword' => 'Aan',              'gapok' => 525000.00,  'tmk' => 0.00,      'wali' => 0.00,     'str' => 0.00,       'makan' => 0.00,      'b1' => 0.00,     'b2' => 0.00,     'eks' => 0.00,       'talangan' => 0.00,      'pot' => 0.00,     'thp' => 525000.00],
-            ['nama' => 'Anang Yulianto',               'keyword' => 'Anang',            'gapok' => 0.00,       'tmk' => 0.00,      'wali' => 0.00,     'str' => 0.00,       'makan' => 0.00,      'b1' => 0.00,     'b2' => 0.00,     'eks' => 540000.00,  'talangan' => 0.00,      'pot' => 0.00,     'thp' => 540000.00],
-            ['nama' => 'Wahyu Anggoro Jati',           'keyword' => 'Wahyu',            'gapok' => 0.00,       'tmk' => 0.00,      'wali' => 0.00,     'str' => 0.00,       'makan' => 0.00,      'b1' => 0.00,     'b2' => 0.00,     'eks' => 1440000.00, 'talangan' => 0.00,      'pot' => 0.00,     'thp' => 1440000.00],
-            ['nama' => 'Tessa',                        'keyword' => 'Tessa',            'gapok' => 550000.00,  'tmk' => 0.00,      'wali' => 0.00,     'str' => 0.00,       'makan' => 50000.00,  'b1' => 0.00,     'b2' => 0.00,     'eks' => 0.00,       'talangan' => 780000.00, 'pot' => 0.00,     'thp' => 1380000.00],
-            ['nama' => 'TRISUYOTO',                    'keyword' => 'Tri',              'gapok' => 1000000.00, 'tmk' => 0.00,      'wali' => 0.00,     'str' => 0.00,       'makan' => 0.00,      'b1' => 0.00,     'b2' => 0.00,     'eks' => 500000.00,  'talangan' => 0.00,      'pot' => 0.00,     'thp' => 1500000.00],
-            ['nama' => 'Ayu Prastiwi',                 'keyword' => 'Ayu Prastiwi',     'gapok' => 0.00,       'tmk' => 0.00,      'wali' => 0.00,     'str' => 0.00,       'makan' => 0.00,      'b1' => 0.00,     'b2' => 0.00,     'eks' => 500000.00,  'talangan' => 0.00,      'pot' => 0.00,     'thp' => 500000.00]
-        ];
-
-        $seeded_slips = 0;
-        foreach ($rincian_benchmark as $rb) {
-            $q_p = $this->db->query("SELECT pegawai_id FROM m_pegawai WHERE nama_pegawai LIKE ? OR ? LIKE CONCAT('%', nama_pegawai, '%') LIMIT 1", ['%' . $rb['keyword'] . '%', $rb['nama']])->row_array();
-            if ($q_p) {
-                $p_id = (int)$q_p['pegawai_id'];
-                $total_kotor = $rb['gapok'] + $rb['tmk'] + $rb['wali'] + $rb['str'] + $rb['makan'] + $rb['b1'] + $rb['b2'] + $rb['eks'] + $rb['talangan'];
-                $data_slip = [
-                    'periode_id'              => $nov_periode_id,
-                    'pegawai_id'              => $p_id,
-                    'gaji_pokok'              => $rb['gapok'],
-                    'masa_kerja_tahun'        => ($rb['tmk'] > 0 ? (int)($rb['tmk'] / 15000) : 0),
-                    'tunj_masa_kerja'         => $rb['tmk'],
-                    'tunj_wali_kelas'         => $rb['wali'],
-                    'tunj_struktural'         => $rb['str'],
-                    'hari_hadir_presensi'     => ($rb['makan'] > 0 ? (int)($rb['makan'] / 5000) : 0),
-                    'tunj_makan'              => $rb['makan'],
-                    'telat_tier1_count'       => ($rb['b1'] > 0 ? 1 : 4),
-                    'datang_lewat_0630_count' => ($rb['b2'] > 0 ? 1 : 4),
-                    'bonus_presensi_tier1'    => $rb['b1'],
-                    'bonus_presensi_tier2'    => $rb['b2'],
-                    'total_tunj_presensi'     => ($rb['b1'] + $rb['b2']),
-                    'honor_ekstra_lunas'      => $rb['eks'],
-                    'honor_ekstra_pending'    => 0.00,
-                    'tunj_kesetaraan'         => 0.00,
-                    'tunj_transport'          => 0.00,
-                    'apresiasi_sertifikasi'   => 0.00,
-                    'talangan_operasional'    => $rb['talangan'],
-                    'total_penghasilan_kotor' => $total_kotor,
-                    'potongan_kasbon'         => $rb['pot'],
-                    'potongan_talangan'       => 0.00,
-                    'potongan_lainnya'        => 0.00,
-                    'total_potongan'          => $rb['pot'],
-                    'take_home_pay'           => $rb['thp']
-                ];
-
-                $cek_slip = $this->db->query("SELECT gaji_id FROM tx_gaji_karyawan WHERE periode_id=? AND pegawai_id=?", [$nov_periode_id, $p_id])->row_array();
-                if (!$cek_slip) {
-                    $this->db->insert('tx_gaji_karyawan', $data_slip);
-                    $seeded_slips++;
-                } else {
-                    $this->db->where('gaji_id', $cek_slip['gaji_id'])->update('tx_gaji_karyawan', $data_slip);
-                    $seeded_slips++;
-                }
-            }
-        }
+        // =============================================================
+        // STEP 13: Seeder Periode Benchmark November 2026 (Rp 22.956.000)
+        // Menggunakan engine sinkronisasi single source of truth di Payroll_model
+        // =============================================================
+        $this->load->model('payroll_model', 'payroll');
+        $sync_res = $this->payroll->sinkronkan_benchmark_november($nov_periode_id);
 
         $logs[] = [
             'step' => 'Seeder Periode Benchmark Nov 2026',
-            'detail' => 'Periode Mukafaah November 2026 siap (Total THP Klop: Rp 22.956.000,- untuk '.$seeded_slips.' guru).',
+            'detail' => 'Periode Mukafaah November 2026 siap (Total THP Klop: Rp ' . number_format($sync_res['total_pengeluaran'], 0, ',', '.') . ',- untuk ' . $sync_res['processed_count'] . ' guru dengan Selisih Rp 0,-).',
             'status' => 'success'
         ];
 

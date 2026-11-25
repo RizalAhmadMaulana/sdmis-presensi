@@ -492,10 +492,14 @@ git pull origin main
 
 ### A. Pengujian Menu Rekonsiliasi & Balance Matching (`gaji/rekonsiliasi`):
 1. Buka browser: `http://localhost/mis_dev/sdmis/gaji/rekonsiliasi`.
-2. Jika data periode belum diisi, akses URL auto-migrasi seeder sekali klik:
-   ```
-   http://localhost/mis_dev/sdmis/migrate_payroll
-   ```
+2. **Cara Menyeimbangkan Balance Menjadi 100% Klop (Selisih Rp 0,-)**:
+   - **Opsi 1 (1-Klik dari Banner Rekonsiliasi)**:  
+     Jika banner berwarna merah ("Terdapat Selisih Balance"), langsung klik tombol kuning:  
+     `⚡ Sinkronkan & Seimbangkan (1-Klik Klop)` di bagian kanan banner.
+   - **Opsi 2 (Via Auto-Migrate Seeder)**:  
+     Akses URL auto-migrasi seeder sekali klik di browser:  
+     `http://localhost/mis_dev/sdmis/migrate_payroll`  
+     *(Di Hostinger: `https://sdmis.sch.id/migrate_payroll`)*
 3. Kembali ke `gaji/rekonsiliasi`, perhatikan Hero Banner di bagian atas:
    - Status: **VERIFIKASI BALANCE SEMPURNA: Rp 22.956.000,-**
    - Badge Hijau: **Balance Matching: 100% Klop (Selisih Rp 0,-)**

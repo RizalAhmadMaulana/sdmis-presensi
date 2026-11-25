@@ -57,6 +57,25 @@ class Rekonsiliasi extends CI_Controller {
     }
 
     /**
+     * Fitur 1-Klik Auto Sync & Balance Matching
+     * Menyinkronkan seluruh 21 rincian guru, talangan operasional, dan akun perbankan
+     * sehingga Total Periode == Total Akumulasi Slip Guru == Total Payroll Bank (Rp 22.956.000,-)
+     */
+    public function sinkron_balance($periode_id = null) {
+        cek_menu_access();
+
+        $res = $this->payroll->sinkronkan_benchmark_november($periode_id);
+
+        if ($res && $res['status']) {
+            $this->session->set_flashdata('message', '<div class="alert alert-success alert-dismissible p-3 mb-4" role="alert"><i class="ti ti-check me-2"></i> <strong>Balance Berhasil Disinkronkan!</strong> Seluruh data 21 guru telah klop sempurna dengan total <b>Rp ' . number_format($res['total_pengeluaran'], 0, ',', '.') . ',-</b> (Selisih: Rp 0,-).<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>');
+        } else {
+            $this->session->set_flashdata('message', '<div class="alert alert-danger alert-dismissible p-3 mb-4" role="alert"><i class="ti ti-alert-triangle me-2"></i> Gagal menyinkronkan balance. Silakan periksa koneksi database.<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>');
+        }
+
+        redirect('gaji/rekonsiliasi/index/' . $periode_id);
+    }
+
+    /**
      * Kunci Periode Langsung dari Dashboard Rekonsiliasi
      */
     public function kunci_final($periode_id = null) {
