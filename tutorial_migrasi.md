@@ -399,21 +399,150 @@ Karena struktur tabel `m_gaji_setting_global` dan `m_gaji_hari_khusus` sudah dib
    - Toast akan tampil selama **3.2 detik**, kemudian meluncur ke atas dan menghilang secara otomatis.
    - Pindah ke menu **Pengaturan Aturan & Tarif** (`gaji/setting`) atau menu lainnya: **pesan tersebut dipastikan TIDAK AKAN PERNAH muncul di menu lain!**
 
-### B. Pengujian Konfirmasi Hapus Interaktif (Tanpa Dialog Browser):
-1. Buka tombol **Master Cabang Ekstra**.
-2. Klik tombol **Hapus** (ikon tong sampah merah) pada salah satu cabang:
-   - Perhatikan bahwa **tidak ada lagi dialog browser bertuliskan `localhost says`**.
-   - Sebagai gantinya, muncul **Modal Konfirmasi Interaktif** yang elegan dengan ikon tong sampah merah di tengah, teks konfirmasi yang jelas, tombol **Batal**, dan tombol **Ya, Hapus**.
-   - Klik **Ya, Hapus** untuk mengeksekusi penghapusan.
+### B. Pengujian Konfirmasi Hapus Interaktif & Tombol yang Clickable:
+1. Di halaman `gaji/ekstra`, coba klik tombol **Hapus** (tong sampah merah) pada salah satu siswa di tabel Checklist Pelunasan:
+   - Muncul **Modal Konfirmasi Interaktif** bertuliskan: *"Hapus Peserta Siswa? Apakah Anda yakin ingin menghapus data siswa [Nama]?"*
+   - Coba klik tombol **Batal**: modal akan menutup dengan lancar.
+   - Coba klik tombol **Ya, Hapus**: data siswa akan langsung terhapus dan halaman menampilkan floating toast konfirmasi sukses. Kedua tombol dipastikan 100% responsif dan dapat diklik!
 
-### C. Pengujian Tampilan Baru Master Cabang Ekstra:
-1. Klik tombol **Master Cabang Ekstra**.
-2. Periksa tampilan modal 2-kolom:
-   - Sisi kiri: Form input yang rapi dengan indikator border aktif.
-   - Sisi kanan: Tabel daftar cabang aktif dengan kolom AKSI yang rapi (tombol Edit dan Hapus berjajar horizontal tanpa tumpang tindih).
-3. Klik tombol **Edit** pada salah satu baris:
-   - Form sisi kiri otomatis berubah warna menjadi kuning/oranye (`border-warning`), judul form berubah menjadi *"Edit: [Nama Cabang]"*, dan tombol *"Batal Edit"* muncul.
-   - Klik *"Batal Edit"* untuk mereset form kembali ke mode Tambah.
+### C. Pengujian Halaman Khusus Master Cabang Ekstra:
+1. Buka halaman utama: `http://localhost/mis_dev/sdmis/gaji/ekstra`.
+2. Klik tombol **Master Cabang Ekstra**:
+   - Sistem akan langsung membuka halaman khusus: `http://localhost/mis_dev/sdmis/gaji/ekstra/cabang`.
+   - Di bagian atas tersedia tombol: **"← Kembali ke Manajemen Ekstra & Siswa"** untuk kembali ke halaman utama kapan saja.
+   - Tampilan halaman 2-kolom permanen: sisi kiri Form Input dengan border aktif, sisi kanan Tabel Daftar Cabang dengan tombol Aksi Edit & Hapus yang rapi berjajar horizontal.
+3. Coba lakukan Tambah, Edit, atau Hapus Cabang:
+   - Saat klik Hapus, modal konfirmasi muncul tepat di halaman ini (bukan di halaman lain).
+   - Setelah selesai, pesan toast konfirmasi sukses langsung muncul di halaman ini selama 3.2 detik dan otomatis hilang.
+
+---
+
+## 📅 Panduan Pengujian CRUD Hari Khusus & Formulir Pengaturan Dinamis
+
+### A. Pengujian Menu Pengaturan Aturan & Tarif (`gaji/setting`):
+1. Buka menu: `http://localhost/mis_dev/sdmis/gaji/setting`.
+2. **Verifikasi Tampilan Bersih (Tanpa Teks SOP / Disbursement)**:
+   - Pastikan teks badge `SOP Mentari v2.0`, `SOP Poin 3-4`, `SOP Formula Tetap`, dan `Disbursement` sudah **hilang/bersih**.
+3. **Pengujian Nilai Nominal Bulat (Anti-Truncation)**:
+   - Periksa angka pada input nominal:
+     - Bonus Tier 1: `50000`
+     - Bonus Tier 2: `50000`
+     - Uang Makan Lama: `5000`
+     - Uang Makan Baru: `2500`
+     - Masa Kerja GTY: `15000`
+     - Wali Kelas: `25000`
+   - Coba ubah salah satu nilai (misal: Uang Makan Lama menjadi `6000`), lalu klik **Simpan Seluruh Pengaturan**.
+   - Setelah reload, nilai tersimpan tetap `6000` (tidak terpotong menjadi 6).
+
+### B. Pengujian Full CRUD Kalender Hari Khusus:
+1. **Tambah Agenda**:
+   - Klik tombol **+ Tambah** di atas tabel Kalender Hari Khusus.
+   - Pilih tanggal, masukkan keterangan (misal: *"Ujian Akhir Semester"*), pilih opsi *Bebas Sanksi*, lalu klik **Simpan ke Kalender**.
+   - Agenda baru akan langsung muncul di tabel dengan badge hijau *Bebas Sanksi*.
+2. **Edit Agenda (Fitur Baru)**:
+   - Pada baris agenda di tabel, klik tombol **Edit** (ikon pensil biru).
+   - Modal edit `#modalEditHariKhusus` akan terbuka dengan tanggal, keterangan, dan radio button terisi otomatis sesuai baris yang dipilih.
+   - Ubah keterangan (misal menjadi *"Rapat Kerja Dewan Guru Tahap 2"*), lalu klik **Simpan Perubahan**.
+   - Data langsung terupdate di tabel dan floating toast konfirmasi sukses muncul di atas layar.
+3. **Hapus Agenda**:
+   - Klik tombol **Hapus** (tong sampah merah) pada agenda.
+   - Modal konfirmasi interaktif akan muncul. Klik **Ya, Hapus**.
+   - Agenda terhapus dari kalender.
+
+---
+
+## 🚀 Panduan Migrasi / Deploy ke Production Hostinger (Setelah Pull)
+
+Setelah Anda selesai menguji di lingkungan lokal, berikut langkah-langkah untuk menerapkan seluruh update ke server produksi Hostinger:
+
+### 1. Push dari Lokal ke GitHub:
+```bash
+cd "C:\xampp\htdocs\mis_dev\sdmis"
+git add .
+git commit -m "feat: complete dynamic payroll engine, full CRUD hari khusus, dedicated ekstra page & clean UI"
+git push origin main
+```
+
+### 2. Pull di Server Hostinger via SSH:
+Buka Terminal VSCode atau SSH client:
+```bash
+ssh sdmis-hostinger
+cd public_html
+git pull origin main
+```
+
+### 3. Konfigurasi Database di Production:
+- **Tabel Baru & Skema**: Seluruh 8 tabel penggajian (`m_gaji_setting_global`, `m_gaji_hari_khusus`, `m_pegawai_gaji_setting`, `m_ekstra`, `tx_ekstra_siswa`, `tx_gaji_periode`, `tx_gaji_karyawan`, `tx_gaji_komponen_manual`) sudah otomatis kompatibel.
+- Untuk menginisialisasi atau memperbarui seluruh tabel, menu portal, seeder 21 guru, dan benchmark periode November 2026 sekali klik:
+  ```
+  https://sdmis.sch.id/migrate_payroll
+  ```
+- **Akses Langsung Seluruh 7 Sub-Menu Penggajian di Production**:
+  1. `https://sdmis.sch.id/gaji/setting` (Pengaturan Aturan & Tarif)
+  2. `https://sdmis.sch.id/gaji/karyawan` (Master Gaji & Rekening)
+  3. `https://sdmis.sch.id/gaji/ekstra` (Manajemen Ekstra & Siswa)
+  4. `https://sdmis.sch.id/gaji/periode` (Periode & Hitung Gaji)
+  5. `https://sdmis.sch.id/gaji/rekonsiliasi` (Rekonsiliasi & Balance Matching)
+  6. `https://sdmis.sch.id/gaji/laporan` (Slip Gaji & Rekapitulasi)
+  7. `https://sdmis.sch.id/gaji/export_bank` (Export Mutasi Bank BRI & BSI)
+
+---
+
+## ⚖️ Panduan Pengujian Tahap 7 & 8: Rekonsiliasi, Slip Gaji A5 & Export Bank
+
+### A. Pengujian Menu Rekonsiliasi & Balance Matching (`gaji/rekonsiliasi`):
+1. Buka browser: `http://localhost/mis_dev/sdmis/gaji/rekonsiliasi`.
+2. Jika data periode belum diisi, akses URL auto-migrasi seeder sekali klik:
+   ```
+   http://localhost/mis_dev/sdmis/migrate_payroll
+   ```
+3. Kembali ke `gaji/rekonsiliasi`, perhatikan Hero Banner di bagian atas:
+   - Status: **VERIFIKASI BALANCE SEMPURNA: Rp 22.956.000,-**
+   - Badge Hijau: **Balance Matching: 100% Klop (Selisih Rp 0,-)**
+   - Pilar 1 (Tabel Periode): `Rp 22.956.000,-`
+   - Pilar 2 (Rincian 21 Guru): `Rp 22.956.000,-`
+   - Pilar 3 (Mutasi Bank): `Rp 22.956.000,-`
+4. Periksa kartu distribusi bank:
+   - **Bank BRI**: 19 Rekening & Total Rp 21.916.000,-
+   - **Bank BSI**: 2 Rekening (Anang Yulianto & Ayu Prastiwi) & Total Rp 1.040.000,-
+   - Grand Total = Rp 22.956.000,- (Sesuai 100% dengan target PRD).
+
+### B. Pengujian Slip Gaji Format A5 & Rekapitulasi (`gaji/laporan`):
+1. Buka browser: `http://localhost/mis_dev/sdmis/gaji/laporan`.
+2. **Cetak Slip Perorangan**:
+   - Pada baris salah satu guru (contoh: Pak Nuki Rifan / Bu Siti Nurhayati), klik tombol **Cetak A5**.
+   - Halaman slip A5 resmi akan terbuka:
+     - Kop resmi Yayasan Mentari Mandiri Sejahtera & SD Mentari Islamic School lengkap logo.
+     - Tabel 2-kolom: Penerimaan/Hak di kiri, Potongan/Kewajiban di kanan.
+     - Box Take Home Pay (THP) dengan kalimat terbilang rupiah otomatis.
+     - Rekening bank tujuan dan tanda tangan resmi Bendahara Yayasan.
+     - Klik tombol **Cetak Sekarang (A5)** atau tekan `Ctrl + P`. Tampilan cetak rapi pas di kertas A5 portrait.
+3. **Cetak Massal (Batch Print A5)**:
+   - Klik tombol **Cetak Semua Slip A5 (Batch)** di pojok kanan atas.
+   - Seluruh 21 slip guru langsung ditampilkan berturut-turut, di mana setiap slip otomatis berpindah lembar berkat CSS `@page { size: A5; }` dan `.slip-wrapper { page-break-after: always; }`.
+4. **Cetak Rekapitulasi Pembukuan**:
+   - Klik tombol **Cetak Rekapitulasi**. Tampilan rekapitulasi A4 Landscape siap cetak dengan matriks lengkap komponen dan tanda tangan pimpinan sekolah.
+
+### C. Pengujian Export Mutasi Bank CMS BRI & BSI (`gaji/export_bank`):
+1. Buka browser: `http://localhost/mis_dev/sdmis/gaji/export_bank`.
+2. **Download File CMS BRI (CSV)**:
+   - Klik tombol **Download File CMS BRI (CSV)**.
+   - Buka file CSV yang terunduh di Notepad atau VSCode:
+     - Header baris 1: `NO,NAMA,ACCOUNT,AMOUNT,Email,CUSTOMERREFF,BENEFICIARY BANK,BENEFICIARY ADDRESS`
+     - 21 baris data rekening guru terisi angka murni.
+     - 5 baris footer integritas perbankan:
+       - `COUNT,,,21,,,,`
+       - `TOTAL,,,22956000,,,,`
+       - `CHECK,,,2122956000,,,,`
+       - `VALUEDATE (DDMMYYYY),,,[TANGGAL],,,,`
+       - `DEBITACCOUNT,,,219701000399305,,,,`
+3. **Download File CMS BSI (CSV)**:
+   - Klik tombol **Download File CMS BSI (CSV)**.
+   - Berkas CSV khusus transfer kliring guru pemilik rekening BSI terunduh rapi.
+4. **Download Master Rekap (CSV)**:
+   - Klik tombol **Download Master Rekap (CSV)** untuk memperoleh arsip spreadsheet lengkap 26 kolom.
+
+
 
 
 

@@ -243,7 +243,7 @@ class Ekstra extends CI_Controller {
             $this->session->set_flashdata('message', '<div class="alert alert-success alert-dismissible p-3 mb-4" role="alert"><i class="ti ti-check me-2"></i> Cabang ekstrakurikuler beserta data peserta terkait berhasil dihapus.<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>');
         }
 
-        redirect('gaji/ekstra');
+        redirect('gaji/ekstra/cabang');
     }
 
     /**
@@ -261,7 +261,7 @@ class Ekstra extends CI_Controller {
 
         if (empty($nama_ekstra)) {
             $this->session->set_flashdata('message', '<div class="alert alert-warning alert-dismissible p-3 mb-4" role="alert"><i class="ti ti-alert-circle me-2"></i> Nama cabang ekstra wajib diisi!<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>');
-            redirect('gaji/ekstra');
+            redirect('gaji/ekstra/cabang');
             return;
         }
 
@@ -282,6 +282,32 @@ class Ekstra extends CI_Controller {
             $this->session->set_flashdata('message', '<div class="alert alert-danger alert-dismissible p-3 mb-4" role="alert"><i class="ti ti-x me-2"></i> Gagal menyimpan cabang ekstra.<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>');
         }
 
-        redirect('gaji/ekstra');
+        redirect('gaji/ekstra/cabang');
+    }
+
+    /**
+     * Halaman Khusus Master Cabang Ekstra & Guru Pengampu
+     */
+    public function cabang() {
+        cek_menu_access();
+        $data['htmlpagejs'] = 'none';
+        $data['nmenu']      = 'Penggajian';
+        $data['nmenusub']   = 'Manajemen Ekstra & Siswa';
+        $data['title']      = 'Master Cabang Ekstra';
+        $data['namalabel']  = $data['title'];
+        $data['auth']       = authUser();
+
+        // Ambil daftar cabang ekstra
+        $data['ekstras'] = $this->payroll->get_all_ekstra();
+
+        // Ambil daftar guru aktif untuk pengampu ekstra
+        $data['guru_list'] = $this->db->query("SELECT pegawai_id, nama_pegawai FROM m_pegawai WHERE is_del = 'n' AND is_status = 'y' ORDER BY nama_pegawai ASC")->result_array();
+
+        $this->load->view('templates/header', $data);
+        $this->load->view('templates/sidemenu', $data);
+        $this->load->view('templates/sidenav', $data);
+        $this->load->view('module/gaji/ekstra/cabang', $data);
+        $this->load->view('templates/footer', $data);
+        $this->load->view('templates/fscript-html-end', $data);
     }
 }

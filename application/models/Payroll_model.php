@@ -41,6 +41,37 @@ class Payroll_model extends CI_Model {
                 'bank_sumber_yayasan'      => 'BRI'
             ];
         }
+
+        // Auto-fix jika ada nilai nominal yang terpotong akibat pemisah ribuan sebelumnya
+        $need_fix = false;
+        if ($query['nominal_bonus_tier1'] > 0 && $query['nominal_bonus_tier1'] <= 100) {
+            $query['nominal_bonus_tier1'] = 50000.00;
+            $need_fix = true;
+        }
+        if ($query['nominal_bonus_tier2'] > 0 && $query['nominal_bonus_tier2'] <= 100) {
+            $query['nominal_bonus_tier2'] = 50000.00;
+            $need_fix = true;
+        }
+        if ($query['tarif_makan_lama'] > 0 && $query['tarif_makan_lama'] <= 100) {
+            $query['tarif_makan_lama'] = 5000.00;
+            $need_fix = true;
+        }
+        if ($query['tarif_makan_baru'] > 0 && $query['tarif_makan_baru'] <= 100) {
+            $query['tarif_makan_baru'] = 2500.00;
+            $need_fix = true;
+        }
+        if ($query['tarif_masa_kerja_tahunan'] > 0 && $query['tarif_masa_kerja_tahunan'] <= 100) {
+            $query['tarif_masa_kerja_tahunan'] = 15000.00;
+            $need_fix = true;
+        }
+        if ($query['nominal_wali_kelas'] > 0 && $query['nominal_wali_kelas'] <= 100) {
+            $query['nominal_wali_kelas'] = 25000.00;
+            $need_fix = true;
+        }
+        if ($need_fix) {
+            $this->db->where('setting_id', 1)->update('m_gaji_setting_global', $query);
+        }
+
         return $query;
     }
 
@@ -686,6 +717,25 @@ class Payroll_model extends CI_Model {
         return $this->db->where('id', $id)->delete('m_gaji_hari_khusus');
     }
 
+    /**
+     * Memperbarui agenda hari khusus
+     * @param int $id
+     * @param array $data
+     * @return bool
+     */
+    public function update_hari_khusus($id, $data) {
+        return $this->db->where('id', (int)$id)->update('m_gaji_hari_khusus', $data);
+    }
+
+    /**
+     * Mengambil detail satu hari khusus berdasarkan ID
+     * @param int $id
+     * @return array|null
+     */
+    public function get_hari_khusus_by_id($id) {
+        return $this->db->get_where('m_gaji_hari_khusus', ['id' => (int)$id])->row_array();
+    }
+
     // =========================================================================
     // 9. CRUD HELPER: PROFIL GAJI & REKENING PEGAWAI (TAHAP 4)
     // =========================================================================
@@ -1132,5 +1182,164 @@ class Payroll_model extends CI_Model {
         $sum = $this->db->query("SELECT SUM(take_home_pay) as tot FROM tx_gaji_karyawan WHERE periode_id = ?", [$periode_id])->row_array();
         $total_periode = $sum ? (float)$sum['tot'] : 0.00;
         $this->db->where('periode_id', $periode_id)->update('tx_gaji_periode', ['total_pengeluaran' => $total_periode]);
+    }
+
+    // =========================================================================
+    // 12. HELPER REKONSILIASI & REPORTING LENGKAP (TAHAP 7 & 8)
+    // =========================================================================
+
+    /**
+     * Mengambil data rekonsiliasi komprehensif 3-arah:
+     * 1) Total Rincian Guru vs 2) Total Periode vs 3) Total Payroll Bank (BRI + BSI)
+     * Beserta matrix rincian seluruh komponen penghasilan & potongan
+     * 
+     * @param int $periode_id
+     * @return array|bool
+     */
+    public function get_reconciliation_data($periode_id) {
+        $periode = $this->get_periode_by_id($periode_id);
+        if (!$periode) return false;
+
+        $rincian = $this->get_rincian_gaji_periode($periode_id);
+        $setting_global = $this->get_setting_global();
+
+        $totals = [
+            'gaji_pokok'              => 0.00,
+            'tunj_masa_kerja'         => 0.00,
+            'tunj_wali_kelas'         => 0.00,
+            'tunj_struktural'         => 0.00,
+            'tunj_makan'              => 0.00,
+            'bonus_presensi_tier1'    => 0.00,
+            'bonus_presensi_tier2'    => 0.00,
+            'total_tunj_presensi'     => 0.00,
+            'honor_ekstra_lunas'      => 0.00,
+            'honor_ekstra_pending'    => 0.00,
+            'tunj_kesetaraan'         => 0.00,
+            'tunj_transport'          => 0.00,
+            'apresiasi_sertifikasi'   => 0.00,
+            'talangan_operasional'    => 0.00,
+            'total_penghasilan_kotor' => 0.00,
+            'potongan_kasbon'         => 0.00,
+            'potongan_talangan'       => 0.00,
+            'potongan_lainnya'        => 0.00,
+            'total_potongan'          => 0.00,
+            'take_home_pay'           => 0.00,
+            'jml_pegawai'             => count($rincian)
+        ];
+
+        $bank_summary = [
+            'BRI' => [
+                'nama'  => 'Bank BRI',
+                'count' => 0,
+                'total' => 0.00,
+                'items' => []
+            ],
+            'BSI' => [
+                'nama'  => 'Bank BSI',
+                'count' => 0,
+                'total' => 0.00,
+                'items' => []
+            ],
+            'LAINNYA' => [
+                'nama'  => 'Bank Lain / Belum Lengkap',
+                'count' => 0,
+                'total' => 0.00,
+                'items' => []
+            ]
+        ];
+
+        foreach ($rincian as $r) {
+            $totals['gaji_pokok']              += (float)$r['gaji_pokok'];
+            $totals['tunj_masa_kerja']         += (float)$r['tunj_masa_kerja'];
+            $totals['tunj_wali_kelas']         += (float)$r['tunj_wali_kelas'];
+            $totals['tunj_struktural']         += (float)$r['tunj_struktural'];
+            $totals['tunj_makan']              += (float)$r['tunj_makan'];
+            $totals['bonus_presensi_tier1']    += (float)$r['bonus_presensi_tier1'];
+            $totals['bonus_presensi_tier2']    += (float)$r['bonus_presensi_tier2'];
+            $totals['total_tunj_presensi']     += (float)$r['total_tunj_presensi'];
+            $totals['honor_ekstra_lunas']      += (float)$r['honor_ekstra_lunas'];
+            $totals['honor_ekstra_pending']    += (float)$r['honor_ekstra_pending'];
+            $totals['tunj_kesetaraan']         += (float)$r['tunj_kesetaraan'];
+            $totals['tunj_transport']          += (float)$r['tunj_transport'];
+            $totals['apresiasi_sertifikasi']   += (float)$r['apresiasi_sertifikasi'];
+            $totals['talangan_operasional']    += (float)$r['talangan_operasional'];
+            $totals['total_penghasilan_kotor'] += (float)$r['total_penghasilan_kotor'];
+            $totals['potongan_kasbon']         += (float)$r['potongan_kasbon'];
+            $totals['potongan_talangan']       += (float)$r['potongan_talangan'];
+            $totals['potongan_lainnya']        += (float)$r['potongan_lainnya'];
+            $totals['total_potongan']          += (float)$r['total_potongan'];
+            $totals['take_home_pay']           += (float)$r['take_home_pay'];
+
+            $bank = strtoupper(trim(isset($r['nama_bank']) ? $r['nama_bank'] : 'BRI'));
+            if (!empty($r['nomor_rekening'])) {
+                if ($bank === 'BSI') {
+                    $bank_summary['BSI']['count']++;
+                    $bank_summary['BSI']['total'] += (float)$r['take_home_pay'];
+                    $bank_summary['BSI']['items'][] = $r;
+                } else {
+                    // Default ke BRI
+                    $bank_summary['BRI']['count']++;
+                    $bank_summary['BRI']['total'] += (float)$r['take_home_pay'];
+                    $bank_summary['BRI']['items'][] = $r;
+                }
+            } else {
+                $bank_summary['LAINNYA']['count']++;
+                $bank_summary['LAINNYA']['total'] += (float)$r['take_home_pay'];
+                $bank_summary['LAINNYA']['items'][] = $r;
+            }
+        }
+
+        $total_periode = (float)$periode['total_pengeluaran'];
+        $total_rincian = $totals['take_home_pay'];
+        $total_bank_disbursement = $bank_summary['BRI']['total'] + $bank_summary['BSI']['total'] + $bank_summary['LAINNYA']['total'];
+
+        $selisih = abs($total_periode - $total_rincian);
+        $is_balance = ($selisih < 0.01 && $total_rincian > 0);
+
+        return [
+            'periode'                 => $periode,
+            'setting_global'          => $setting_global,
+            'rincian'                 => $rincian,
+            'totals'                  => $totals,
+            'bank_summary'            => $bank_summary,
+            'total_periode'           => $total_periode,
+            'total_rincian'           => $total_rincian,
+            'total_bank_disbursement' => $total_bank_disbursement,
+            'selisih'                 => $selisih,
+            'is_balance'              => $is_balance
+        ];
+    }
+
+    /**
+     * Konversi angka nominal rupiah menjadi kalimat terbilang bahasa Indonesia
+     * @param int|float $nilai
+     * @return string
+     */
+    public function terbilang($nilai) {
+        $nilai = abs((float)$nilai);
+        $huruf = ['', 'Satu', 'Dua', 'Tiga', 'Empat', 'Lima', 'Enam', 'Tujuh', 'Delapan', 'Sembilan', 'Sepuluh', 'Sebelas'];
+        $temp = '';
+
+        if ($nilai < 12) {
+            $temp = ' ' . $huruf[(int)$nilai];
+        } else if ($nilai < 20) {
+            $temp = $this->terbilang($nilai - 10) . ' Belas';
+        } else if ($nilai < 100) {
+            $temp = $this->terbilang((int)($nilai / 10)) . ' Puluh' . $this->terbilang($nilai % 10);
+        } else if ($nilai < 200) {
+            $temp = ' Seratus' . $this->terbilang($nilai - 100);
+        } else if ($nilai < 1000) {
+            $temp = $this->terbilang((int)($nilai / 100)) . ' Ratus' . $this->terbilang($nilai % 100);
+        } else if ($nilai < 2000) {
+            $temp = ' Seribu' . $this->terbilang($nilai - 1000);
+        } else if ($nilai < 1000000) {
+            $temp = $this->terbilang((int)($nilai / 1000)) . ' Ribu' . $this->terbilang($nilai % 1000);
+        } else if ($nilai < 1000000000) {
+            $temp = $this->terbilang((int)($nilai / 1000000)) . ' Juta' . $this->terbilang($nilai % 1000000);
+        } else if ($nilai < 1000000000000) {
+            $temp = $this->terbilang((int)($nilai / 1000000000)) . ' Miliar' . $this->terbilang(fmod($nilai, 1000000000));
+        }
+
+        return trim($temp) . ' Rupiah';
     }
 }

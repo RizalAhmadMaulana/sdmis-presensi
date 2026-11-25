@@ -11,9 +11,6 @@
         Konfigurasi parameter jam kerja, formula bonus kedisiplinan 2-tier presensi biometrik, tarif tunjangan, dan kalender hari khusus pulang awal.
       </p>
     </div>
-    <span class="badge bg-label-primary px-3 py-2 fs-6">
-      <i class="ti ti-shield-check me-1"></i> SOP Mentari v2.0
-    </span>
   </div>
 
   <!-- Flash Toast & Modal Konfirmasi -->
@@ -30,7 +27,6 @@
             <h5 class="card-title mb-0 d-flex align-items-center text-primary">
               <i class="ti ti-clock-check me-2 fs-4"></i> Aturan Presensi 2-Tier & Bonus Kedisiplinan
             </h5>
-            <span class="badge bg-primary">SOP Poin 3-4</span>
           </div>
           <div class="card-body">
             <div class="alert alert-info py-2 px-3 mb-3 small d-flex align-items-center">
@@ -104,8 +100,8 @@
                 </label>
                 <div class="input-group">
                   <span class="input-group-text">Rp</span>
-                  <input type="text" class="form-control text-end fw-bold" id="nominal_bonus_tier1" name="nominal_bonus_tier1" 
-                         value="<?=number_format(isset($setting['nominal_bonus_tier1']) ? $setting['nominal_bonus_tier1'] : 50000, 0, ',', '.');?>" required>
+                  <input type="number" step="1000" class="form-control text-end fw-bold" id="nominal_bonus_tier1" name="nominal_bonus_tier1" 
+                         value="<?=(int)(isset($setting['nominal_bonus_tier1']) ? $setting['nominal_bonus_tier1'] : 50000);?>" required>
                 </div>
                 <div class="form-text small">Diberikan jika telat &gt; 06.48 &le; 3 kali.</div>
               </div>
@@ -117,8 +113,8 @@
                 </label>
                 <div class="input-group">
                   <span class="input-group-text">Rp</span>
-                  <input type="text" class="form-control text-end fw-bold" id="nominal_bonus_tier2" name="nominal_bonus_tier2" 
-                         value="<?=number_format(isset($setting['nominal_bonus_tier2']) ? $setting['nominal_bonus_tier2'] : 50000, 0, ',', '.');?>" required>
+                  <input type="number" step="1000" class="form-control text-end fw-bold" id="nominal_bonus_tier2" name="nominal_bonus_tier2" 
+                         value="<?=(int)(isset($setting['nominal_bonus_tier2']) ? $setting['nominal_bonus_tier2'] : 50000);?>" required>
                 </div>
                 <div class="form-text small">Tambahan jika datang &gt; 06.30 &le; 3 kali.</div>
               </div>
@@ -132,7 +128,6 @@
             <h5 class="card-title mb-0 d-flex align-items-center text-info">
               <i class="ti ti-meat me-2 fs-4"></i> Tarif Uang Makan, Masa Kerja & Tunjangan Jabatan
             </h5>
-            <span class="badge bg-info">SOP Formula Tetap</span>
           </div>
           <div class="card-body">
             <div class="row g-3">
@@ -143,8 +138,8 @@
                 </label>
                 <div class="input-group">
                   <span class="input-group-text">Rp</span>
-                  <input type="text" class="form-control text-end fw-bold" id="tarif_makan_lama" name="tarif_makan_lama" 
-                         value="<?=number_format(isset($setting['tarif_makan_lama']) ? $setting['tarif_makan_lama'] : 5000, 0, ',', '.');?>" required>
+                  <input type="number" step="500" class="form-control text-end fw-bold" id="tarif_makan_lama" name="tarif_makan_lama" 
+                         value="<?=(int)(isset($setting['tarif_makan_lama']) ? $setting['tarif_makan_lama'] : 5000);?>" required>
                   <span class="input-group-text">/ Hadir</span>
                 </div>
                 <div class="form-text small">Dikalikan akumulasi hadir fisik guru bermasa kerja &gt; 3 thn.</div>
@@ -157,8 +152,8 @@
                 </label>
                 <div class="input-group">
                   <span class="input-group-text">Rp</span>
-                  <input type="text" class="form-control text-end fw-bold" id="tarif_makan_baru" name="tarif_makan_baru" 
-                         value="<?=number_format(isset($setting['tarif_makan_baru']) ? $setting['tarif_makan_baru'] : 2500, 0, ',', '.');?>" required>
+                  <input type="number" step="500" class="form-control text-end fw-bold" id="tarif_makan_baru" name="tarif_makan_baru" 
+                         value="<?=(int)(isset($setting['tarif_makan_baru']) ? $setting['tarif_makan_baru'] : 2500);?>" required>
                   <span class="input-group-text">/ Hadir</span>
                 </div>
                 <div class="form-text small">Dikalikan akumulasi hadir fisik guru bermasa kerja &le; 3 thn.</div>
@@ -171,8 +166,8 @@
                 </label>
                 <div class="input-group">
                   <span class="input-group-text">Rp</span>
-                  <input type="text" class="form-control text-end fw-bold" id="tarif_masa_kerja_tahunan" name="tarif_masa_kerja_tahunan" 
-                         value="<?=number_format(isset($setting['tarif_masa_kerja_tahunan']) ? $setting['tarif_masa_kerja_tahunan'] : 15000, 0, ',', '.');?>" required>
+                  <input type="number" step="1000" class="form-control text-end fw-bold" id="tarif_masa_kerja_tahunan" name="tarif_masa_kerja_tahunan" 
+                         value="<?=(int)(isset($setting['tarif_masa_kerja_tahunan']) ? $setting['tarif_masa_kerja_tahunan'] : 15000);?>" required>
                   <span class="input-group-text">/ Tahun</span>
                 </div>
                 <div class="form-text small">Khusus Guru Tetap Yayasan (GTY): Rp 15.000 x Lama Kerja.</div>
@@ -185,8 +180,8 @@
                 </label>
                 <div class="input-group">
                   <span class="input-group-text">Rp</span>
-                  <input type="text" class="form-control text-end fw-bold" id="nominal_wali_kelas" name="nominal_wali_kelas" 
-                         value="<?=number_format(isset($setting['nominal_wali_kelas']) ? $setting['nominal_wali_kelas'] : 25000, 0, ',', '.');?>" required>
+                  <input type="number" step="1000" class="form-control text-end fw-bold" id="nominal_wali_kelas" name="nominal_wali_kelas" 
+                         value="<?=(int)(isset($setting['nominal_wali_kelas']) ? $setting['nominal_wali_kelas'] : 25000);?>" required>
                   <span class="input-group-text">/ Bulan</span>
                 </div>
                 <div class="form-text small">Tunjangan tetap bulanan bagi guru penanggung jawab kelas.</div>
@@ -201,7 +196,6 @@
             <h5 class="card-title mb-0 d-flex align-items-center text-success">
               <i class="ti ti-building-bank me-2 fs-4"></i> Rekening Sumber Operasional Yayasan (CMS Payroll)
             </h5>
-            <span class="badge bg-success">Disbursement</span>
           </div>
           <div class="card-body">
             <div class="row g-3">
@@ -247,7 +241,7 @@
             <h5 class="card-title mb-0 d-flex align-items-center text-warning">
               <i class="ti ti-calendar-event me-2 fs-4"></i> Kalender Hari Khusus
             </h5>
-            <small class="text-muted">Waiver Pulang Lebih Awal (SOP 3.a)</small>
+            <small class="text-muted">Waiver Pulang Lebih Awal (Resmi Sekolah)</small>
           </div>
           <button type="button" class="btn btn-sm btn-primary rounded-pill" data-bs-toggle="modal" data-bs-target="#modalTambahHariKhusus">
             <i class="ti ti-plus me-1"></i> Tambah
@@ -265,7 +259,7 @@
                 <tr>
                   <th>Tanggal</th>
                   <th>Keterangan Agenda</th>
-                  <th class="text-center" style="width: 50px;">Aksi</th>
+                  <th class="text-center" style="width: 80px; min-width: 80px;">Aksi</th>
                 </tr>
               </thead>
               <tbody>
@@ -279,20 +273,37 @@
                       <td>
                         <span class="text-dark small fw-semibold"><?=htmlspecialchars($hk['keterangan']);?></span>
                         <div>
-                          <span class="badge bg-label-success p-1 small" style="font-size: 10px;">
-                            <i class="ti ti-circle-check"></i> Bebas Sanksi
-                          </span>
+                          <?php if ($hk['boleh_pulang_awal'] === 'y') { ?>
+                            <span class="badge bg-label-success p-1 small" style="font-size: 10px;">
+                              <i class="ti ti-circle-check"></i> Bebas Sanksi
+                            </span>
+                          <?php } else { ?>
+                            <span class="badge bg-label-warning p-1 small" style="font-size: 10px;">
+                              <i class="ti ti-clock"></i> Normal
+                            </span>
+                          <?php } ?>
                         </div>
                       </td>
                       <td class="text-center align-middle">
-                        <button type="button" 
-                                class="btn btn-sm btn-icon btn-label-danger rounded-pill btn-confirm-delete" 
-                                data-url="<?=base_url('gaji/setting/delete_hari_khusus/'.$hk['id']);?>" 
-                                data-title="Hapus Hari Khusus?" 
-                                data-text="Apakah Anda yakin ingin menghapus tanggal <b><?=date('d/m/Y', strtotime($hk['tanggal']));?></b> dari Kalender Hari Khusus?" 
-                                title="Hapus Agenda">
-                          <i class="ti ti-trash"></i>
-                        </button>
+                        <div class="d-inline-flex">
+                          <button type="button" 
+                                  class="btn btn-sm btn-icon btn-label-primary rounded-pill btn-edit-hari-khusus me-1" 
+                                  data-id="<?=$hk['id'];?>"
+                                  data-tanggal="<?=$hk['tanggal'];?>"
+                                  data-keterangan="<?=htmlspecialchars($hk['keterangan']);?>"
+                                  data-boleh="<?=$hk['boleh_pulang_awal'];?>"
+                                  title="Edit Agenda">
+                            <i class="ti ti-edit"></i>
+                          </button>
+                          <button type="button" 
+                                  class="btn btn-sm btn-icon btn-label-danger rounded-pill btn-confirm-delete" 
+                                  data-url="<?=base_url('gaji/setting/delete_hari_khusus/'.$hk['id']);?>" 
+                                  data-title="Hapus Hari Khusus?" 
+                                  data-text="Apakah Anda yakin ingin menghapus tanggal <b><?=date('d/m/Y', strtotime($hk['tanggal']));?></b> dari Kalender Hari Khusus?" 
+                                  title="Hapus Agenda">
+                            <i class="ti ti-trash"></i>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   <?php endforeach; ?>
@@ -366,3 +377,94 @@
     </div>
   </div>
 </div>
+
+<!-- MODAL EDIT HARI KHUSUS -->
+<div class="modal fade" id="modalEditHariKhusus" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title d-flex align-items-center">
+          <i class="ti ti-edit me-2 text-warning"></i> Edit Agenda Hari Khusus Pulang Cepat
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form action="<?=base_url('gaji/setting/edit_hari_khusus');?>" method="POST">
+        <input type="hidden" name="id" id="edit_hk_id">
+        <div class="modal-body">
+          <div class="alert alert-info py-2 px-3 small mb-3">
+            <i class="ti ti-info-circle me-1"></i> Agenda pada tanggal ini akan mengecualikan pelanggaran kepulangan cepat di mesin evaluasi penggajian.
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold" for="edit_hk_tanggal">Tanggal Agenda Sekolah <span class="text-danger">*</span></label>
+            <input type="date" class="form-control" id="edit_hk_tanggal" name="tanggal" required>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold" for="edit_hk_keterangan">Keterangan / Nama Agenda <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="edit_hk_keterangan" name="keterangan" required>
+            <div class="form-text small">Tuliskan nama kegiatan resmi sekolah.</div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold">Perlakuan Absen Pulang</label>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="boleh_pulang_awal" id="edit_hk_bpa_y" value="y">
+              <label class="form-check-label" for="edit_hk_bpa_y">
+                <strong>Bebas Sanksi (Boleh Pulang Lebih Awal)</strong> - Rekomendasi
+              </label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="boleh_pulang_awal" id="edit_hk_bpa_n" value="n">
+              <label class="form-check-label" for="edit_hk_bpa_n">
+                Tetap Wajib Mengikuti Jam Kerja Normal
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer border-top">
+          <button type="button" class="btn btn-label-secondary" data-bs-dismiss="modal">Batal</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="ti ti-check me-1"></i> Simpan Perubahan
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  // Move modals to body to prevent stacking context or backdrop overlap
+  const modalEditEl = document.getElementById('modalEditHariKhusus');
+  if (modalEditEl && modalEditEl.parentElement !== document.body) {
+    document.body.appendChild(modalEditEl);
+  }
+
+  // Handle Edit Hari Khusus click
+  document.querySelectorAll('.btn-edit-hari-khusus').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      const id = this.getAttribute('data-id');
+      const tanggal = this.getAttribute('data-tanggal');
+      const keterangan = this.getAttribute('data-keterangan');
+      const boleh = this.getAttribute('data-boleh');
+
+      document.getElementById('edit_hk_id').value = id;
+      document.getElementById('edit_hk_tanggal').value = tanggal;
+      document.getElementById('edit_hk_keterangan').value = keterangan;
+
+      if (boleh === 'n') {
+        document.getElementById('edit_hk_bpa_n').checked = true;
+      } else {
+        document.getElementById('edit_hk_bpa_y').checked = true;
+      }
+
+      if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        bootstrap.Modal.getOrCreateInstance(modalEditEl).show();
+      } else if (typeof $ !== 'undefined') {
+        $('#modalEditHariKhusus').modal('show');
+      }
+    });
+  });
+});
+</script>

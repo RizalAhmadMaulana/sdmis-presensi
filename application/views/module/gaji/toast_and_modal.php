@@ -138,8 +138,33 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 <?php endif; ?>
 
+<style>
+/* Pastikan Modal Konfirmasi selalu di paling atas dan tombolnya 100% clickable */
+#modalConfirmDeleteGaji {
+  z-index: 99999 !important;
+}
+#modalConfirmDeleteGaji .modal-dialog {
+  z-index: 100000 !important;
+  pointer-events: auto !important;
+}
+#modalConfirmDeleteGaji .modal-content {
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 100001 !important;
+}
+#modalConfirmDeleteGaji .btn {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  position: relative;
+  z-index: 100002 !important;
+}
+.modal-backdrop.gaji-confirm-backdrop {
+  z-index: 99998 !important;
+}
+</style>
+
 <!-- MODAL KONFIRMASI HAPUS INTERAKTIF (MENGGANTIKAN DIALOG BROWSER LOCALHOST SAYS) -->
-<div class="modal fade" id="modalConfirmDeleteGaji" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
+<div class="modal fade" id="modalConfirmDeleteGaji" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-sm">
     <div class="modal-content shadow-lg border-0" style="border-radius: 16px; overflow: hidden;">
       <div class="modal-body text-center p-4">
@@ -163,22 +188,66 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+  var modalEl = document.getElementById('modalConfirmDeleteGaji');
+
+  // Pindahkan modal langsung ke <body> agar sejajar dengan .modal-backdrop
+  // Ini mencegah modal terjebak di dalam stacking context .container-xxl / .layout-page
+  if (modalEl && modalEl.parentNode !== document.body) {
+    document.body.appendChild(modalEl);
+  }
+
+  // Atur z-index backdrop saat modal ditampilkan
+  if (modalEl) {
+    modalEl.addEventListener('show.bs.modal', function() {
+      setTimeout(function() {
+        var backdrops = document.querySelectorAll('.modal-backdrop');
+        if (backdrops.length > 0) {
+          var latestBackdrop = backdrops[backdrops.length - 1];
+          latestBackdrop.style.zIndex = '99998';
+          latestBackdrop.classList.add('gaji-confirm-backdrop');
+        }
+      }, 15);
+    });
+  }
+
+  // Event listener tombol konfirmasi "Ya, Hapus"
+  var confirmBtn = document.getElementById('modalConfirmDeleteBtn');
+  if (confirmBtn) {
+    confirmBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      var targetUrl = this.getAttribute('data-href') || this.getAttribute('href');
+      if (targetUrl && targetUrl !== '#' && targetUrl !== '') {
+        window.location.href = targetUrl;
+      }
+    });
+  }
+
   // Delegate event click untuk semua tombol yang memiliki class .btn-confirm-delete
   document.body.addEventListener('click', function(e) {
     var target = e.target.closest('.btn-confirm-delete');
     if (target) {
       e.preventDefault();
+      e.stopPropagation();
+
       var url = target.getAttribute('data-url') || target.getAttribute('href');
       var title = target.getAttribute('data-title') || 'Konfirmasi Hapus';
       var text = target.getAttribute('data-text') || 'Apakah Anda yakin ingin menghapus data ini?';
 
       document.getElementById('modalConfirmDeleteTitle').textContent = title;
       document.getElementById('modalConfirmDeleteText').innerHTML = text;
-      document.getElementById('modalConfirmDeleteBtn').setAttribute('href', url);
 
-      var modalEl = document.getElementById('modalConfirmDeleteGaji');
-      var bsModal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-      bsModal.show();
+      var btnHapus = document.getElementById('modalConfirmDeleteBtn');
+      btnHapus.setAttribute('href', url);
+      btnHapus.setAttribute('data-href', url);
+
+      if (modalEl) {
+        var bsModal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl, {
+          backdrop: true,
+          keyboard: true,
+          focus: true
+        });
+        bsModal.show();
+      }
     }
   });
 });

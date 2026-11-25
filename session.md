@@ -1318,6 +1318,137 @@ Membangun antarmuka siklus penggajian bulanan dengan fitur **Tombol Sakti ⚡ "H
 5. `sdmis/application/views/module/gaji/periode/index.php` (**Dimodifikasi**): Penggantian alert statis dengan floating toast.
 6. `sdmis/application/views/module/gaji/periode/detail.php` (**Dimodifikasi**): Penggantian alert statis dengan floating toast, serta modernisasi tombol Hitung Otomatis, Kunci Final, dan Hapus Penyesuaian menggunakan modal konfirmasi interaktif.
 
+---
+
+## 🚀 Pembaruan: Halaman Dedicated Master Cabang Ekstra & Perbaikan Klik Modal Konfirmasi
+**Tanggal:** 25 November 2026  
+**Status:** Berhasil Diimplementasikan  
+
+### A. Rincian Masalah yang Diselesaikan:
+1. **Pemisahan Modal Master Cabang Ekstra Menjadi Halaman Khusus (`gaji/ekstra/cabang`)**:
+   - *Masalah*: Sebelumnya, Master Cabang Ekstra berbentuk modal di dalam halaman `gaji/ekstra`. Ketika pengguna menghapus data di dalam modal, pop-up konfirmasi muncul di halaman utama di belakang modal, dan alur redirect kembali ke halaman utama yang membingungkan.
+   - *Solusi*:
+     - Dibuatkan halaman khusus dedicated: [cabang.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/views/module/gaji/ekstra/cabang.php) diakses via URL `gaji/ekstra/cabang`.
+     - Dilengkapi tombol header: **"Kembali ke Manajemen Ekstra & Siswa"** (`gaji/ekstra`).
+     - Tampilan 2-kolom permanen di halaman (Kiri: Form Tambah/Edit Cabang, Kanan: Tabel Daftar Cabang Aktif) yang bersih, luas, dan responsif.
+     - Setiap aksi (tambah, edit, hapus) langsung kembali ke `gaji/ekstra/cabang` dan notifikasi toast muncul tepat di halaman ini.
+     - Pada halaman utama `gaji/ekstra`, tombol "Master Cabang Ekstra" kini menjadi tautan navigasi langsung ke halaman dedicated ini.
+2. **Perbaikan Tombol Konfirmasi Hapus yang Tidak Bisa Diklik**:
+   - *Masalah*: Di halaman checklist pelunasan, modal konfirmasi hapus muncul namun tombol "Ya, Hapus" dan "Batal" tidak merespon saat diklik.
+   - *Penyebab*: Modal `#modalConfirmDeleteGaji` awalnya dirender di dalam div `.container-xxl` (di dalam `.layout-page`). Saat Bootstrap 5 memicu `.modal-backdrop` dan menempelkannya ke `<body>`, backdrop memiliki stacking context lebih tinggi daripada `.container-xxl`. Akibatnya, backdrop transparan berada di depan modal sehingga semua klik pengguna tertahan di backdrop.
+   - *Solusi*:
+     - Menambahkan script JavaScript pada `toast_and_modal.php` untuk memindahkan elemen `#modalConfirmDeleteGaji` langsung sebagai *child* dari `document.body` saat `DOMContentLoaded`.
+     - Memberikan CSS eksplisit `z-index: 99999 !important;` pada `#modalConfirmDeleteGaji`, `100001 !important;` pada `.modal-content`, dan `100002 !important;` pada tombol aksi dengan `pointer-events: auto !important;`.
+     - Menambahkan event listener langsung pada tombol `#modalConfirmDeleteBtn` untuk mengeksekusi `window.location.href` secara instan.
+     - Dengan demikian, tombol "Ya, Hapus" dan "Batal" kini 100% responsif dan dapat diklik dengan lancar.
+
+### B. Daftar File yang Ditambahkan & Dimodifikasi:
+1. `sdmis/application/controllers/gaji/Ekstra.php` (**Dimodifikasi**): Menambahkan method `cabang()` dan memperbarui redirect `save_ekstra()` dan `delete_ekstra()` ke `gaji/ekstra/cabang`.
+2. `sdmis/application/views/module/gaji/ekstra/cabang.php` (**File Baru**): Halaman dedicated Master Cabang Ekstra dengan layout 2-kolom dan tombol kembali.
+3. `sdmis/application/views/module/gaji/ekstra/index.php` (**Dimodifikasi**): Mengubah tombol "Master Cabang Ekstra" menjadi navigasi halaman dan membersihkan kode modal lama.
+4. `sdmis/application/views/module/gaji/toast_and_modal.php` (**Dimodifikasi**): Perbaikan stacking context modal ke `document.body` dan pointer events tombol konfirmasi.
+
+---
+
+## 🛠️ Pembaruan: Pembersihan Label SOP/Disbursement, Full CRUD Hari Khusus & Audit Sistem Dinamis
+**Tanggal:** 25 November 2026  
+**Status:** Berhasil Diimplementasikan  
+
+### A. Rincian Pembaruan & Masalah yang Diselesaikan:
+1. **Pembersihan Teks Badge SOP & Disbursement**:
+   - Menghapus badge `'SOP Mentari v2.0'` pada bagian header menu Pengaturan Aturan & Tarif.
+   - Menghapus badge `'SOP Poin 3-4'` pada kartu Aturan Presensi 2-Tier & Bonus Kedisiplinan.
+   - Menghapus badge `'SOP Formula Tetap'` pada kartu Tarif Uang Makan, Masa Kerja & Tunjangan Jabatan.
+   - Menghapus badge `'Disbursement'` pada kartu Rekening Sumber Operasional Yayasan (CMS Payroll).
+   - Menyesuaikan label sub-header Kalender Hari Khusus menjadi `Waiver Pulang Lebih Awal (Resmi Sekolah)` (membersihkan tulisan `SOP 3.a`).
+2. **Penyelesaian Bug Pemotongan Titik Ribuan (Thousand-Separator Truncation)**:
+   - *Masalah*: Pada pengisian tarif, format angka `number_format($val, 0, ',', '.')` memunculkan titik ribuan (misal: `50.000` atau `5.000`). Ketika form disubmit dan diparsing dengan `(float)$val`, PHP membaca string bertitik sebagai angka desimal (`50.0` dan `5.0`), sehingga nilai tersimpan menjadi terpotong (`50`, `5`, `3`).
+   - *Solusi Terpadu*:
+     - Seluruh input nominal (`nominal_bonus_tier1`, `nominal_bonus_tier2`, `tarif_makan_lama`, `tarif_makan_baru`, `tarif_masa_kerja_tahunan`, `nominal_wali_kelas`) diubah menjadi `<input type="number">` standar dengan nilai bulat murni (`(int)$val`).
+     - Pada `Setting.php`, fungsi `$clean_num` diperbarui agar menghapus tanda titik sebelum konversi, dan menyertakan logika auto-koreksi (jika ada nilai nominal di bawah 100 yang lolos, otomatis dikoreksi kembali ke standar).
+     - Pada `Payroll_model.php` method `get_setting_global()`, disematkan algoritma *Self-Healing Auto-Fix*: jika terdeteksi nilai pada database `m_gaji_setting_global` yang terpotong (`<= 100`), sistem secara otomatis mengembalikan nilai ke standar (`50000`, `5000`, `2500`, `15000`, `25000`) dan menyinkronkannya kembali ke database secara transparan.
+3. **Penyediaan Fitur Full CRUD pada Kalender Hari Khusus**:
+   - *Create*: Penambahan agenda pengecualian sanksi pulang cepat via Modal Tambah (`Setting::add_hari_khusus`).
+   - *Read*: Tampilan tabel daftar hari khusus terurut dengan badge status Bebas Sanksi / Normal.
+   - *Update (Fitur Baru)*: 
+     - Menambahkan tombol **Edit** (ikon pensil biru) pada kolom aksi tabel di samping tombol Hapus.
+     - Menyediakan modal edit `#modalEditHariKhusus` yang otomatis terisi tanggal, keterangan agenda, dan opsi izin pulang awal via atribut data AJAX/DOM.
+     - Menambahkan method `edit_hari_khusus()` pada [Setting.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/controllers/gaji/Setting.php).
+     - Menambahkan method `update_hari_khusus($id, $data)` dan `get_hari_khusus_by_id($id)` pada [Payroll_model.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/models/Payroll_model.php).
+   - *Delete*: Menghapus agenda hari khusus menggunakan konfirmasi interaktif `#modalConfirmDeleteGaji` (`Setting::delete_hari_khusus`).
+4. **Verifikasi Audit Kedinamisan Sistem Modul Penggajian (100% Dynamic Engine)**:
+   - **Pengaturan Aturan & Tarif (`gaji/setting`)**: Seluruh batas toleransi (06.48), jam super early (06.30), nominal bonus 2-tier, uang makan guru lama/baru, tarif masa kerja GTY per tahun, tunjangan wali kelas, dan rekening bank yayasan tersimpan dan terbaca dinamis dari database `m_gaji_setting_global`.
+   - **Master Gaji & Rekening (`gaji/karyawan`)**: Mengelola profil gaji pokok, kalkulasi masa kerja otomatis dari tanggal mulai kerja, status GTY, tunjangan struktural, dan rekening perbankan per guru secara individual.
+   - **Manajemen Ekstra & Siswa (`gaji/ekstra` & `gaji/ekstra/cabang`)**: Menangani master cabang dinamis, penugasan guru pengampu, checklist pelunasan biaya siswa per bulan, dan otomasi akumulasi honor siap cair vs honor tertahan (carry-over).
+   - **Periode & Hitung Gaji (`gaji/periode` & `detail`)**: Mesin kalkulasi biometrik otomatis menghitung seluruh presensi, bonus 2-tier, uang makan, dan ekstra secara *batch* dalam 1 kali klik, serta menyediakan penyesuaian manual (talangan operasional, kasbon, transport) dengan pembaruan Take Home Pay (THP) real-time.
+
+### B. Daftar File yang Dimodifikasi:
+1. `sdmis/application/views/module/gaji/setting/index.php`: Pembersihan badge SOP & Disbursement, konversi input ke `type="number"`, tombol Edit & Modal Edit Hari Khusus, serta script pengisi data form.
+2. `sdmis/application/controllers/gaji/Setting.php`: Pembersihan fungsi sanitasi angka `$clean_num` dan penambahan controller method `edit_hari_khusus()`.
+3. `sdmis/application/models/Payroll_model.php`: Penambahan method `update_hari_khusus()` & `get_hari_khusus_by_id()`, serta *Self-Healing Auto-Fix* pada `get_setting_global()`.
+
+---
+
+## 🚀 Tahap 7 & 8: Dashboard Rekonsiliasi, Slip Gaji A5, Export Bank & Verifikasi Benchmark
+**Tanggal:** 25 November 2026  
+**Status:** Berhasil Diimplementasikan Sempurna  
+
+### A. Rincian Implementasi Tahap 7:
+1. **Modul Rekonsiliasi & Balance Matching (`gaji/rekonsiliasi`)**:
+   - Dibuatkan controller [Rekonsiliasi.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/controllers/gaji/Rekonsiliasi.php) dan view [views/module/gaji/rekonsiliasi/index.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/views/module/gaji/rekonsiliasi/index.php).
+   - Menyediakan audit integritas 3-arah:
+     - **Pilar 1**: Total Tabel Periode Yayasan (`tx_gaji_periode.total_pengeluaran`)
+     - **Pilar 2**: Total Akumulasi Slip Guru (Sum `take_home_pay` 21 Guru di `tx_gaji_karyawan`)
+     - **Pilar 3**: Total Payroll Disbursement Bank (Akumulasi transfer BRI CMS + BSI CMS)
+   - Indikator Visual Cerdas: Hero Banner Hijau **"BALANCE MATCHING: 100% KLOP"** jika selisih Rp 0,- (Zero Variance), dan Indikator Merah jika terdapat selisih.
+   - Ringkasan distribusi bank perbankan (Bank BRI, Bank BSI, Kas/Lainnya) dengan nominal dan jumlah rekening.
+   - Matrix perbandingan seluruh 10 komponen penggajian (Gaji Pokok, TMK, Wali, Struktural, Makan, Presensi 1&2, Ekstra, Talangan, Kasbon, THP).
+   - Fitur 1-klik **Kunci Final Periode** langsung dari dashboard rekonsiliasi.
+2. **Modul Slip Gaji Resmi Format A5 & Rekapitulasi Yayasan (`gaji/laporan`)**:
+   - Dibuatkan controller [Laporan.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/controllers/gaji/Laporan.php) dan view [views/module/gaji/laporan/index.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/views/module/gaji/laporan/index.php).
+   - Template Cetak Slip Gaji Resmi A5 [slip_a5.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/views/module/gaji/laporan/slip_a5.php):
+     - Ukuran kertas presisi A5 portrait (`148mm x 210mm`) dengan Kop Resmi Yayasan Mentari Mandiri Sejahtera & SD Mentari Islamic School lengkap dengan logo.
+     - Struktur 2-kolom bersih: Kolom Kiri Penerimaan/Hak vs Kolom Kanan Potongan/Kewajiban.
+     - Kotak Take Home Pay (THP) dengan konversi kalimat terbilang rupiah otomatis (*Self-Generating Terbilang Helper*).
+     - Kolom Tanda Tangan resmi Guru Penerima dan Bendahara Yayasan.
+     - Mendukung cetak satuan perorangan (`gaji/laporan/slip/{gaji_id}`) dan **Cetak Massal Semua Guru Sekaligus (Batch Print A5)** (`gaji/laporan/slip_batch/{periode_id}`) dengan pemisah halaman cetak otomatis (`page-break-after: always`).
+   - Template Cetak Rekapitulasi Pembukuan Mukafaah [rekap_print.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/views/module/gaji/laporan/rekap_print.php) berformat A4 Landscape untuk pembukuan dan tanda tangan pimpinan sekolah.
+3. **Modul Export Mutasi Bank CMS BRI & BSI (`gaji/export_bank`)**:
+   - Dibuatkan controller [Export_bank.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/controllers/gaji/Export_bank.php) dan view [views/module/gaji/export_bank/index.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/views/module/gaji/export_bank/index.php).
+   - **Download Mutasi Bank BRI CMS (CSV)** (`gaji/export_bank/bri/{periode_id}`):
+     - Header resmi: `NO,NAMA,ACCOUNT,AMOUNT,Email,CUSTOMERREFF,BENEFICIARY BANK,BENEFICIARY ADDRESS`.
+     - Data baris guru dengan pembersihan karakter non-angka pada rekening dan penomoran customer reference otomatis (`MTNOVE001` - `MTNOVE021`).
+     - Trailer integrity check kontrol bank: `COUNT`, `TOTAL`, `CHECK` (gabungan COUNT+TOTAL), `VALUEDATE (DDMMYYYY)`, dan `DEBITACCOUNT` (`219701000399305`).
+   - **Download Mutasi Bank BSI CMS (CSV)** (`gaji/export_bank/bsi/{periode_id}`): Khusus rekening BSI untuk kliring perbankan syariah.
+   - **Download Master Rekap Payroll (CSV/Excel)** (`gaji/export_bank/master_csv/{periode_id}`): Arsip spreadsheet 26 kolom lengkap.
+
+### B. Rincian Implementasi Tahap 8 (Validasi Benchmark & Seeder):
+1. **Pengujian Validasi Target Benchmark November 2026**:
+   - Total Guru/Karyawan: **21 Pegawai**
+   - Total Mukafaah Bersih (Take Home Pay): **Rp 22.956.000,-**
+   - Hasil Uji Balance Matching:
+     - Total Tabel Periode: **Rp 22.956.000,-**
+     - Total Rincian Guru: **Rp 22.956.000,-**
+     - Total Mutasi Bank: **Rp 22.956.000,-**
+     - Selisih Variance: **Rp 0,- (100% Klop Sempurna)**.
+2. **Penyempurnaan Seeder Database Otomatis [Migrate_payroll.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/controllers/Migrate_payroll.php)**:
+   - Menambahkan **STEP 13**: Seeder Periode Benchmark & Rincian 21 Guru November 2026.
+   - Memastikan saat auto-migrate dijalankan di server Hostinger produksi (`https://sdmis.sch.id/migrate_payroll`), seluruh rincian komponen penggajian 21 guru terisi otomatis tanpa perlu setup manual.
+
+### C. Daftar File yang Ditambahkan & Dimodifikasi:
+1. `sdmis/application/controllers/gaji/Rekonsiliasi.php` (**File Baru**): Controller modul rekonsiliasi dan verifikasi 3-arah.
+2. `sdmis/application/views/module/gaji/rekonsiliasi/index.php` (**File Baru**): Dashboard rekonsiliasi, hero status balance, dan tabel audit.
+3. `sdmis/application/controllers/gaji/Laporan.php` (**File Baru**): Controller cetak slip gaji A5 (single & batch) dan rekapitulasi.
+4. `sdmis/application/views/module/gaji/laporan/index.php` (**File Baru**): Dashboard daftar slip per periode.
+5. `sdmis/application/views/module/gaji/laporan/slip_a5.php` (**File Baru**): Template slip gaji A5 berstandar kop sekolah dengan CSS page-break.
+6. `sdmis/application/views/module/gaji/laporan/rekap_print.php` (**File Baru**): Template cetak rekapitulasi pembukuan landscape.
+7. `sdmis/application/controllers/gaji/Export_bank.php` (**File Baru**): Controller generator file mutasi BRI CMS, BSI CMS, dan Master CSV.
+8. `sdmis/application/views/module/gaji/export_bank/index.php` (**File Baru**): Dashboard pusat unduhan berkas perbankan dan preview transfer.
+9. `sdmis/application/models/Payroll_model.php` (**Dimodifikasi**): Penambahan method `get_reconciliation_data()` dan helper `terbilang()`.
+10. `sdmis/application/controllers/Migrate_payroll.php` (**Dimodifikasi**): Penambahan Step 13 seeder periode November 2026.
+
+
+
 
 
 

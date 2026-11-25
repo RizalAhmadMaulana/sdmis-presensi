@@ -46,21 +46,29 @@ class Setting extends CI_Controller {
         cek_menu_access();
 
         // Helper pembersih angka desimal/rupiah
-        $clean_num = function($val) {
-            $cleaned = preg_replace('/[^0-9.]/', '', str_replace(',', '.', $val));
-            return is_numeric($cleaned) ? (float)$cleaned : 0.00;
+        $clean_num = function($val, $min_expected = 1000) {
+            if (empty($val)) return 0.00;
+            $val = str_replace(' ', '', (string)$val);
+            $val = str_replace('.', '', $val);
+            $val = str_replace(',', '.', $val);
+            $cleaned = preg_replace('/[^0-9.]/', '', $val);
+            $num = is_numeric($cleaned) ? (float)$cleaned : 0.00;
+            if ($min_expected > 0 && $num > 0 && $num < 100 && ($num * 1000) >= $min_expected) {
+                $num = $num * 1000;
+            }
+            return $num;
         };
 
         $jam_masuk_standar     = trim($this->input->post('jam_masuk_standar', true));
         $toleransi_menit       = (int)$this->input->post('toleransi_menit', true);
         $jam_masuk_super_early = trim($this->input->post('jam_masuk_super_early', true));
         $max_toleransi_telat   = (int)$this->input->post('max_toleransi_telat', true);
-        $nominal_bonus_tier1   = $clean_num($this->input->post('nominal_bonus_tier1', true));
-        $nominal_bonus_tier2   = $clean_num($this->input->post('nominal_bonus_tier2', true));
-        $tarif_makan_lama      = $clean_num($this->input->post('tarif_makan_lama', true));
-        $tarif_makan_baru      = $clean_num($this->input->post('tarif_makan_baru', true));
-        $tarif_masa_kerja      = $clean_num($this->input->post('tarif_masa_kerja_tahunan', true));
-        $nominal_wali_kelas    = $clean_num($this->input->post('nominal_wali_kelas', true));
+        $nominal_bonus_tier1   = $clean_num($this->input->post('nominal_bonus_tier1', true), 10000);
+        $nominal_bonus_tier2   = $clean_num($this->input->post('nominal_bonus_tier2', true), 10000);
+        $tarif_makan_lama      = $clean_num($this->input->post('tarif_makan_lama', true), 1000);
+        $tarif_makan_baru      = $clean_num($this->input->post('tarif_makan_baru', true), 1000);
+        $tarif_masa_kerja      = $clean_num($this->input->post('tarif_masa_kerja_tahunan', true), 5000);
+        $nominal_wali_kelas    = $clean_num($this->input->post('nominal_wali_kelas', true), 5000);
         $rekening_debit        = trim($this->input->post('rekening_debit_yayasan', true));
         $bank_sumber           = trim($this->input->post('bank_sumber_yayasan', true));
 
@@ -138,6 +146,40 @@ class Setting extends CI_Controller {
         if ($id) {
             $this->payroll->delete_hari_khusus((int)$id);
             $this->session->set_flashdata('message', '<div class="alert alert-success alert-dismissible p-3 mb-4" role="alert"><i class="ti ti-check me-2"></i> Agenda hari khusus berhasil dihapus dari kalender.<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>');
+        }
+
+        redirect('gaji/setting');
+    }
+
+    /**
+     * Edit / Perbarui Agenda Hari Khusus Pulang Cepat
+     */
+    public function edit_hari_khusus() {
+        cek_menu_access();
+
+        $id = (int)$this->input->post('id', true);
+        $tanggal = trim($this->input->post('tanggal', true));
+        $keterangan = trim($this->input->post('keterangan', true));
+        $boleh_pulang_awal = $this->input->post('boleh_pulang_awal', true) === 'n' ? 'n' : 'y';
+
+        if (!$id || empty($tanggal) || empty($keterangan)) {
+            $this->session->set_flashdata('message', '<div class="alert alert-warning alert-dismissible p-3 mb-4" role="alert"><i class="ti ti-alert-circle me-2"></i> Tanggal dan keterangan agenda wajib diisi!<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>');
+            redirect('gaji/setting');
+            return;
+        }
+
+        $data_update = [
+            'tanggal'           => $tanggal,
+            'keterangan'        => $keterangan,
+            'boleh_pulang_awal' => $boleh_pulang_awal
+        ];
+
+        $res = $this->payroll->update_hari_khusus($id, $data_update);
+
+        if ($res) {
+            $this->session->set_flashdata('message', '<div class="alert alert-success alert-dismissible p-3 mb-4" role="alert"><i class="ti ti-check me-2"></i> Perubahan agenda hari khusus tanggal <b>' . date('d M Y', strtotime($tanggal)) . '</b> berhasil disimpan!<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>');
+        } else {
+            $this->session->set_flashdata('message', '<div class="alert alert-danger alert-dismissible p-3 mb-4" role="alert"><i class="ti ti-x me-2"></i> Gagal memperbarui agenda hari khusus.<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>');
         }
 
         redirect('gaji/setting');
