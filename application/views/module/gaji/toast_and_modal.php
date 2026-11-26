@@ -168,8 +168,8 @@ document.addEventListener('DOMContentLoaded', function() {
   <div class="modal-dialog modal-dialog-centered modal-sm">
     <div class="modal-content shadow-lg border-0" style="border-radius: 16px; overflow: hidden;">
       <div class="modal-body text-center p-4">
-        <div class="avatar avatar-xl bg-label-danger mx-auto mb-3 rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
-          <i class="ti ti-trash fs-1 text-danger"></i>
+        <div id="modalConfirmIconWrap" class="avatar avatar-xl bg-label-danger mx-auto mb-3 rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+          <i id="modalConfirmIcon" class="ti ti-trash fs-1 text-danger"></i>
         </div>
         <h5 class="fw-bold mb-2 text-dark" id="modalConfirmDeleteTitle">Konfirmasi Hapus</h5>
         <p class="text-muted small mb-4" id="modalConfirmDeleteText">Apakah Anda yakin ingin menghapus data ini?</p>
@@ -210,7 +210,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Event listener tombol konfirmasi "Ya, Hapus"
+  // Event listener tombol konfirmasi "Ya, Hapus" / Action
   var confirmBtn = document.getElementById('modalConfirmDeleteBtn');
   if (confirmBtn) {
     confirmBtn.addEventListener('click', function(e) {
@@ -232,11 +232,23 @@ document.addEventListener('DOMContentLoaded', function() {
       var url = target.getAttribute('data-url') || target.getAttribute('href');
       var title = target.getAttribute('data-title') || 'Konfirmasi Hapus';
       var text = target.getAttribute('data-text') || 'Apakah Anda yakin ingin menghapus data ini?';
+      var variant = target.getAttribute('data-variant') || 'danger';
+      var icon = target.getAttribute('data-icon') || 'ti-trash';
+      var btnText = target.getAttribute('data-btn-text') || 'Ya, Hapus';
 
       document.getElementById('modalConfirmDeleteTitle').textContent = title;
       document.getElementById('modalConfirmDeleteText').innerHTML = text;
 
+      var iconWrap = document.getElementById('modalConfirmIconWrap');
+      var iconEl = document.getElementById('modalConfirmIcon');
+      if (iconWrap && iconEl) {
+        iconWrap.className = 'avatar avatar-xl bg-label-' + variant + ' mx-auto mb-3 rounded-circle d-flex align-items-center justify-content-center';
+        iconEl.className = 'ti ' + icon + ' fs-1 text-' + variant;
+      }
+
       var btnHapus = document.getElementById('modalConfirmDeleteBtn');
+      btnHapus.className = 'btn btn-' + variant + ' px-4 rounded-pill shadow-sm';
+      btnHapus.innerHTML = '<i class="ti ' + icon + ' me-1"></i> ' + btnText;
       btnHapus.setAttribute('href', url);
       btnHapus.setAttribute('data-href', url);
 

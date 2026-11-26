@@ -143,7 +143,9 @@ class Payroll_model extends CI_Model {
         $detail_log = [];
 
         foreach ($riwayat_absen as $ab) {
-            $is_hadir = ($ab['is_status'] === 'h');
+            // Di database SDMIS, hadir riil tersimpan sebagai 'hhk' (Hadir Hari Kerja),
+            // 'hbhk' (Hadir Bukan Hari Kerja), 'tl' (Tugas Luar), atau 'h' (legacy)
+            $is_hadir = in_array(strtolower(trim((string)$ab['is_status'])), ['h', 'hhk', 'hbhk', 'tl'], true);
             $tgl = $ab['tanggal_absen'];
 
             if ($is_hadir) {
@@ -205,9 +207,11 @@ class Payroll_model extends CI_Model {
         $jumlah_izin_sakit = 0;
         $jumlah_izin_darurat = 0;
         foreach ($daftar_izin as $iz) {
-            if ($iz['tipe_request'] == 'sakit') {
+            $tipe_req = strtolower(trim((string)$iz['tipe_request']));
+            $ket_req = strtolower(trim((string)$iz['keterangan']));
+            if (in_array($tipe_req, ['s', 'sakit'], true)) {
                 $jumlah_izin_sakit++;
-            } else if ($iz['tipe_request'] == 'izin' && (strpos(strtolower($iz['keterangan']), 'takziah') !== false || strpos(strtolower($iz['keterangan']), 'keluarga') !== false)) {
+            } else if (in_array($tipe_req, ['i', 'izin'], true) && (strpos($ket_req, 'takziah') !== false || strpos($ket_req, 'keluarga') !== false)) {
                 $jumlah_izin_darurat++;
             }
         }
@@ -326,62 +330,56 @@ class Payroll_model extends CI_Model {
         $detail_ekstra = [];
 
         foreach ($ekstras as $ek) {
-            $ekstra_id = $ek['ekstra_id'];
+            $ekstra_id = (int)$ek['ekstra_id'];
             $tarif = (float)$ek['tarif_standar'];
 
-            if ($ek['tipe_honor'] === 'per_anak') {
-                // 1. Siswa Lunas Bulan Berjalan
-                $sql_lunas = "SELECT COUNT(*) as jml FROM tx_ekstra_siswa 
-                              WHERE ekstra_id = ? AND bulan = ? AND tahun = ? AND status_bayar = 'lunas'";
-                $q_lunas = $this->db->query($sql_lunas, [$ekstra_id, $bulan, $tahun])->row_array();
-                $jml_lunas = isset($q_lunas['jml']) ? (int)$q_lunas['jml'] : 0;
-                $sub_honor_lunas = $jml_lunas * $tarif;
+            // Berlaku untuk semua tipe honor: per_anak, per_sesi, maupun per_kedatangan
+            // Gunakan nominal_tagihan siswa/sesi jika > 0, fallback ke tarif_standar cabang ekstra
+            // 1. Siswa / Sesi Lunas Bulan Berjalan
+            $sql_lunas = "SELECT COUNT(*) as jml,
+                                 COALESCE(SUM(CASE WHEN nominal_tagihan > 0 THEN nominal_tagihan ELSE ? END), 0.00) as total_nom
+                          FROM tx_ekstra_siswa
+                          WHERE ekstra_id = ? AND bulan = ? AND tahun = ? AND status_bayar = 'lunas'";
+            $q_lunas = $this->db->query($sql_lunas, [$tarif, $ekstra_id, $bulan, $tahun])->row_array();
+            $jml_lunas = isset($q_lunas['jml']) ? (int)$q_lunas['jml'] : 0;
+            $sub_honor_lunas = isset($q_lunas['total_nom']) ? (float)$q_lunas['total_nom'] : 0.00;
 
-                // 2. Siswa Belum Lunas Bulan Berjalan (Pending)
-                $sql_pending = "SELECT COUNT(*) as jml FROM tx_ekstra_siswa 
-                                WHERE ekstra_id = ? AND bulan = ? AND tahun = ? AND status_bayar = 'pending'";
-                $q_pending = $this->db->query($sql_pending, [$ekstra_id, $bulan, $tahun])->row_array();
-                $jml_pending = isset($q_pending['jml']) ? (int)$q_pending['jml'] : 0;
-                $sub_honor_pending = $jml_pending * $tarif;
+            // 2. Siswa / Sesi Belum Lunas Bulan Berjalan (Pending)
+            $sql_pending = "SELECT COUNT(*) as jml,
+                                   COALESCE(SUM(CASE WHEN nominal_tagihan > 0 THEN nominal_tagihan ELSE ? END), 0.00) as total_nom
+                            FROM tx_ekstra_siswa
+                            WHERE ekstra_id = ? AND bulan = ? AND tahun = ? AND status_bayar = 'pending'";
+            $q_pending = $this->db->query($sql_pending, [$tarif, $ekstra_id, $bulan, $tahun])->row_array();
+            $jml_pending = isset($q_pending['jml']) ? (int)$q_pending['jml'] : 0;
+            $sub_honor_pending = isset($q_pending['total_nom']) ? (float)$q_pending['total_nom'] : 0.00;
 
-                // 3. Carry-Over: Siswa bulan lalu yang baru lunas pada bulan ini
-                $sql_carry = "SELECT COUNT(*) as jml FROM tx_ekstra_siswa 
-                              WHERE ekstra_id = ? 
-                                AND ((tahun = ? AND bulan < ?) OR tahun < ?)
-                                AND status_bayar = 'lunas' 
-                                AND MONTH(tanggal_bayar) = ? AND YEAR(tanggal_bayar) = ?";
-                $q_carry = $this->db->query($sql_carry, [$ekstra_id, $tahun, $bulan, $tahun, $bulan, $tahun])->row_array();
-                $jml_carry = isset($q_carry['jml']) ? (int)$q_carry['jml'] : 0;
-                $sub_honor_carry = $jml_carry * $tarif;
+            // 3. Carry-Over: Siswa bulan lalu yang baru lunas pada bulan ini
+            $sql_carry = "SELECT COUNT(*) as jml,
+                                 COALESCE(SUM(CASE WHEN nominal_tagihan > 0 THEN nominal_tagihan ELSE ? END), 0.00) as total_nom
+                          FROM tx_ekstra_siswa
+                          WHERE ekstra_id = ?
+                            AND ((tahun = ? AND bulan < ?) OR tahun < ?)
+                            AND status_bayar = 'lunas'
+                            AND MONTH(tanggal_bayar) = ? AND YEAR(tanggal_bayar) = ?";
+            $q_carry = $this->db->query($sql_carry, [$tarif, $ekstra_id, $tahun, $bulan, $tahun, $bulan, $tahun])->row_array();
+            $jml_carry = isset($q_carry['jml']) ? (int)$q_carry['jml'] : 0;
+            $sub_honor_carry = isset($q_carry['total_nom']) ? (float)$q_carry['total_nom'] : 0.00;
 
-                $total_ekstra_cair = $sub_honor_lunas + $sub_honor_carry;
+            $total_ekstra_cair = $sub_honor_lunas + $sub_honor_carry;
 
-                $total_honor_lunas += $total_ekstra_cair;
-                $total_honor_pending += $sub_honor_pending;
+            $total_honor_lunas += $total_ekstra_cair;
+            $total_honor_pending += $sub_honor_pending;
 
-                $detail_ekstra[] = [
-                    'nama_ekstra'       => $ek['nama_ekstra'],
-                    'tipe'              => 'per_anak',
-                    'tarif'             => $tarif,
-                    'jml_lunas'         => $jml_lunas,
-                    'jml_pending'       => $jml_pending,
-                    'jml_carry_over'    => $jml_carry,
-                    'honor_cair'        => $total_ekstra_cair,
-                    'honor_tertahan'    => $sub_honor_pending
-                ];
-            } else {
-                // Tipe Per Sesi (Renang) atau Per Kedatangan (Tahfidz/Tasmi)
-                $detail_ekstra[] = [
-                    'nama_ekstra'       => $ek['nama_ekstra'],
-                    'tipe'              => $ek['tipe_honor'],
-                    'tarif'             => $tarif,
-                    'jml_lunas'         => 0,
-                    'jml_pending'       => 0,
-                    'jml_carry_over'    => 0,
-                    'honor_cair'        => 0.00,
-                    'honor_tertahan'    => 0.00
-                ];
-            }
+            $detail_ekstra[] = [
+                'nama_ekstra'       => $ek['nama_ekstra'],
+                'tipe'              => $ek['tipe_honor'],
+                'tarif'             => $tarif,
+                'jml_lunas'         => $jml_lunas,
+                'jml_pending'       => $jml_pending,
+                'jml_carry_over'    => $jml_carry,
+                'honor_cair'        => $total_ekstra_cair,
+                'honor_tertahan'    => $sub_honor_pending
+            ];
         }
 
         return [
@@ -416,8 +414,11 @@ class Payroll_model extends CI_Model {
         $tgl_awal = $periode['tanggal_awal'];
         $tgl_akhir = $periode['tanggal_akhir'];
 
-        // 2. Ambil Profil Pegawai & Setting Gaji
-        $pegawai = $this->db->query("SELECT a.*, b.* 
+        // 2. Ambil Profil Pegawai & Setting Gaji (kolom eksplisit agar pegawai_id tidak tertimpa NULL)
+        $pegawai = $this->db->query("SELECT a.pegawai_id, a.id_pegawai, a.nama_pegawai, a.tanggal_mulai_kerja,
+                                            b.status_kepegawaian, b.is_wali_kelas, b.nama_jabatan_struktural,
+                                            b.nominal_tunj_struktural, b.gaji_pokok_nominal, b.tunj_khusus_tetap,
+                                            b.nama_bank, b.nomor_rekening, b.nama_pemilik_rekening, b.customer_reff
                                      FROM m_pegawai a
                                      LEFT JOIN m_pegawai_gaji_setting b ON a.pegawai_id = b.pegawai_id
                                      WHERE a.pegawai_id = ?", [$pegawai_id])->row_array();
@@ -437,8 +438,9 @@ class Payroll_model extends CI_Model {
         $is_wali = (isset($pegawai['is_wali_kelas']) && $pegawai['is_wali_kelas'] === 'y');
         $tunj_wali_kelas = $is_wali ? (float)$setting['nominal_wali_kelas'] : 0.00;
 
-        // 5. Tunjangan Struktural / Tugas Tambahan
+        // 5. Tunjangan Struktural / Tugas Tambahan & Tunjangan Khusus Tetap
         $tunj_struktural = isset($pegawai['nominal_tunj_struktural']) ? (float)$pegawai['nominal_tunj_struktural'] : 0.00;
+        $tunj_khusus_tetap = isset($pegawai['tunj_khusus_tetap']) ? (float)$pegawai['tunj_khusus_tetap'] : 0.00;
 
         // 6. Kalkulasi Presensi Biometrik 2-Tier
         $data_presensi = $this->hitung_presensi_pegawai($pegawai_id, $tgl_awal, $tgl_akhir);
@@ -462,7 +464,7 @@ class Payroll_model extends CI_Model {
         $talangan_operasional = 0.00;
         $tunj_transport = 0.00;
         $tunj_kesetaraan = 0.00;
-        $apresiasi_sertifikasi = 0.00;
+        $apresiasi_sertifikasi = $tunj_khusus_tetap;
         $potongan_kasbon = 0.00;
         $potongan_talangan = 0.00;
         $potongan_lainnya = 0.00;
@@ -476,6 +478,7 @@ class Payroll_model extends CI_Model {
                     else if ($adj['kategori'] === 'transport') $tunj_transport += $nom;
                     else if ($adj['kategori'] === 'kesetaraan') $tunj_kesetaraan += $nom;
                     else if ($adj['kategori'] === 'sertifikasi') $apresiasi_sertifikasi += $nom;
+                    else $talangan_operasional += $nom;
                 } else if ($adj['jenis'] === 'potongan') {
                     if ($adj['kategori'] === 'kasbon') $potongan_kasbon += $nom;
                     else if ($adj['kategori'] === 'talangan') $potongan_talangan += $nom;
@@ -555,6 +558,11 @@ class Payroll_model extends CI_Model {
      * @return array Status & total kalkulasi
      */
     public function batch_generate_payroll($periode_id, $user_id = 1) {
+        $periode = $this->db->get_where('tx_gaji_periode', ['periode_id' => $periode_id])->row_array();
+        if (!$periode) {
+            return ['status' => false, 'processed_count' => 0, 'total_pengeluaran' => 0.00];
+        }
+
         $this->db->trans_start();
 
         // Ambil seluruh pegawai aktif
@@ -562,12 +570,14 @@ class Payroll_model extends CI_Model {
 
         $total_pengeluaran = 0.00;
         $processed_count = 0;
+        $processed_pids = [];
 
         foreach ($pegawais as $p) {
-            $pid = $p['pegawai_id'];
+            $pid = (int)$p['pegawai_id'];
             $res = $this->kalkulasi_gaji_pegawai($pid, $periode_id);
 
             if ($res) {
+                $processed_pids[] = $pid;
                 $data_save = [
                     'periode_id'              => $periode_id,
                     'pegawai_id'              => $pid,
@@ -606,10 +616,25 @@ class Payroll_model extends CI_Model {
                     $this->db->insert('tx_gaji_karyawan', $data_save);
                 }
 
-                $total_pengeluaran += $res['take_home_pay'];
                 $processed_count++;
             }
         }
+
+        // Bersihkan slip pegawai non-aktif / terhapus jika ada agar Header Periode selalu klop dengan Rincian
+        if (!empty($processed_pids)) {
+            $stale_slips = $this->db->query(
+                "SELECT gaji_id FROM tx_gaji_karyawan WHERE periode_id = ? AND pegawai_id NOT IN (" . implode(',', $processed_pids) . ")",
+                [$periode_id]
+            )->result_array();
+            foreach ($stale_slips as $st) {
+                $this->db->where('gaji_id', (int)$st['gaji_id'])->delete('tx_gaji_komponen_manual');
+                $this->db->where('gaji_id', (int)$st['gaji_id'])->delete('tx_gaji_karyawan');
+            }
+        }
+
+        // Hitung ulang total pengeluaran langsung dari database agar 100% balance
+        $sum_q = $this->db->query("SELECT COALESCE(SUM(take_home_pay), 0.00) as tot FROM tx_gaji_karyawan WHERE periode_id = ?", [$periode_id])->row_array();
+        $total_pengeluaran = isset($sum_q['tot']) ? (float)$sum_q['tot'] : 0.00;
 
         // Perbarui Header Periode
         $this->db->where('periode_id', $periode_id)->update('tx_gaji_periode', [
@@ -1041,7 +1066,7 @@ class Payroll_model extends CI_Model {
      */
     public function get_rincian_gaji_periode($periode_id) {
         $sql = "SELECT a.*, 
-                       b.id_pegawai, b.nama_pegawai, b.nomor_pegawai, b.tanggal_mulai_kerja,
+                       b.id_pegawai, b.nama_pegawai, b.email_pegawai as email, b.nomor_pegawai, b.tanggal_mulai_kerja,
                        c.status_kepegawaian, c.is_wali_kelas, c.nama_jabatan_struktural,
                        c.nama_bank, c.nomor_rekening, c.nama_pemilik_rekening, c.customer_reff
                 FROM tx_gaji_karyawan a
@@ -1065,7 +1090,7 @@ class Payroll_model extends CI_Model {
      */
     public function get_gaji_karyawan_by_id($gaji_id) {
         $sql = "SELECT a.*, 
-                       b.id_pegawai, b.nama_pegawai, b.nomor_pegawai, b.tanggal_mulai_kerja,
+                       b.id_pegawai, b.nama_pegawai, b.email_pegawai as email, b.nomor_pegawai, b.tanggal_mulai_kerja,
                        c.status_kepegawaian, c.is_wali_kelas, c.nama_jabatan_struktural,
                        c.nama_bank, c.nomor_rekening, c.nama_pemilik_rekening, c.customer_reff,
                        d.nama_periode, d.bulan, d.tahun, d.tanggal_awal, d.tanggal_akhir
@@ -1127,12 +1152,17 @@ class Payroll_model extends CI_Model {
         $gaji = $this->db->get_where('tx_gaji_karyawan', ['gaji_id' => $gaji_id])->row_array();
         if (!$gaji) return;
 
+        // Ambil tunjangan khusus tetap dari master profil agar tetap ikut terhitung
+        $q_set = $this->db->get_where('m_pegawai_gaji_setting', ['pegawai_id' => $gaji['pegawai_id']])->row_array();
+        $tunj_khusus_tetap = $q_set && isset($q_set['tunj_khusus_tetap']) ? (float)$q_set['tunj_khusus_tetap'] : 0.00;
+
         // Ambil seluruh penyesuaian manual aktif
         $adjs = $this->db->get_where('tx_gaji_komponen_manual', ['gaji_id' => $gaji_id])->result_array();
 
         $talangan = 0.00;
         $transport = 0.00;
         $kesetaraan = 0.00;
+        $apresiasi = $tunj_khusus_tetap;
         $kasbon = 0.00;
         $pot_talangan = 0.00;
         $pot_lain = 0.00;
@@ -1143,6 +1173,8 @@ class Payroll_model extends CI_Model {
                 if ($a['kategori'] === 'talangan') $talangan += $nom;
                 else if ($a['kategori'] === 'transport') $transport += $nom;
                 else if ($a['kategori'] === 'kesetaraan') $kesetaraan += $nom;
+                else if ($a['kategori'] === 'sertifikasi') $apresiasi += $nom;
+                else $talangan += $nom;
             } else if ($a['jenis'] === 'potongan') {
                 if ($a['kategori'] === 'kasbon') $kasbon += $nom;
                 else if ($a['kategori'] === 'talangan') $pot_talangan += $nom;
@@ -1159,7 +1191,7 @@ class Payroll_model extends CI_Model {
                                    (float)$gaji['honor_ekstra_lunas'] +
                                    $kesetaraan +
                                    $transport +
-                                   (float)$gaji['apresiasi_sertifikasi'] +
+                                   $apresiasi +
                                    $talangan;
 
         $total_potongan = $kasbon + $pot_talangan + $pot_lain;
@@ -1169,6 +1201,7 @@ class Payroll_model extends CI_Model {
             'talangan_operasional'    => $talangan,
             'tunj_transport'          => $transport,
             'tunj_kesetaraan'         => $kesetaraan,
+            'apresiasi_sertifikasi'   => $apresiasi,
             'potongan_kasbon'         => $kasbon,
             'potongan_talangan'       => $pot_talangan,
             'potongan_lainnya'        => $pot_lain,
@@ -1636,6 +1669,7 @@ class Payroll_model extends CI_Model {
         $next_id = (isset($max_id_q['max_id']) && (int)$max_id_q['max_id'] > 0) ? ((int)$max_id_q['max_id'] + 1) : 100;
 
         $processed_count = 0;
+        $valid_pegawai_ids = [];
 
         foreach ($master_21 as $m) {
             // Pencarian cerdas tanpa duplikasi & tanpa salah sasaran
@@ -1657,7 +1691,9 @@ class Payroll_model extends CI_Model {
                 $conds[] = "nama_pegawai LIKE '%" . $this->db->escape_like_str($m['alias']) . "%'";
             }
             $where_sql = implode(' OR ', $conds);
-            $q_peg = $this->db->query("SELECT pegawai_id, nama_pegawai FROM m_pegawai WHERE is_del = 'n' AND ($where_sql) ORDER BY pegawai_id ASC LIMIT 1")->row_array();
+
+            $not_in_sql = !empty($valid_pegawai_ids) ? " AND pegawai_id NOT IN (" . implode(',', $valid_pegawai_ids) . ")" : "";
+            $q_peg = $this->db->query("SELECT pegawai_id, nama_pegawai FROM m_pegawai WHERE is_del = 'n' AND ($where_sql) $not_in_sql ORDER BY pegawai_id ASC LIMIT 1")->row_array();
             
             if (!$q_peg) {
                 // Tambahkan ke m_pegawai
@@ -1683,6 +1719,8 @@ class Payroll_model extends CI_Model {
                     'is_del'        => 'n'
                 ]);
             }
+
+            $valid_pegawai_ids[] = $pid;
 
             // Update m_pegawai_gaji_setting
             $q_set = $this->db->get_where('m_pegawai_gaji_setting', ['pegawai_id' => $pid])->row_array();
@@ -1733,13 +1771,18 @@ class Payroll_model extends CI_Model {
                 'take_home_pay'           => $m['thp']
             ];
 
-            $q_slip = $this->db->get_where('tx_gaji_karyawan', ['periode_id' => $periode_id, 'pegawai_id' => $pid])->row_array();
-            if (!$q_slip) {
+            $q_slips = $this->db->get_where('tx_gaji_karyawan', ['periode_id' => $periode_id, 'pegawai_id' => $pid])->result_array();
+            if (empty($q_slips)) {
                 $this->db->insert('tx_gaji_karyawan', $data_slip);
                 $gaji_id = (int)$this->db->insert_id();
             } else {
-                $gaji_id = (int)$q_slip['gaji_id'];
+                $gaji_id = (int)$q_slips[0]['gaji_id'];
                 $this->db->where('gaji_id', $gaji_id)->update('tx_gaji_karyawan', $data_slip);
+                // Hapus baris duplikat jika ada untuk pegawai yang sama di periode ini
+                for ($k = 1; $k < count($q_slips); $k++) {
+                    $this->db->where('gaji_id', (int)$q_slips[$k]['gaji_id'])->delete('tx_gaji_komponen_manual');
+                    $this->db->where('gaji_id', (int)$q_slips[$k]['gaji_id'])->delete('tx_gaji_karyawan');
+                }
             }
 
             // Sync komponen penyesuaian manual (talangan & kasbon) agar tampil di popup breakdown
@@ -1778,6 +1821,24 @@ class Payroll_model extends CI_Model {
             }
 
             $processed_count++;
+        }
+
+        // BERSIHKAN SELURUH SLIP DI LUAR 21 PEGAWAI BENCHMARK PADA PERIODE INI
+        // (Misal akun testing seperti Coba Rizal atau data lama yang pernah di-generate)
+        if (!empty($valid_pegawai_ids)) {
+            $stale_slips = $this->db->query(
+                "SELECT gaji_id FROM tx_gaji_karyawan WHERE periode_id = ? AND pegawai_id NOT IN (" . implode(',', $valid_pegawai_ids) . ")",
+                [$periode_id]
+            )->result_array();
+
+            foreach ($stale_slips as $st) {
+                $this->db->where('gaji_id', (int)$st['gaji_id'])->delete('tx_gaji_komponen_manual');
+            }
+
+            $this->db->query(
+                "DELETE FROM tx_gaji_karyawan WHERE periode_id = ? AND pegawai_id NOT IN (" . implode(',', $valid_pegawai_ids) . ")",
+                [$periode_id]
+            );
         }
 
         // Sinkronkan header periode ke jumlah THP yang valid dan set status final

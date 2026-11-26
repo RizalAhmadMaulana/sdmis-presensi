@@ -367,7 +367,9 @@
             <label class="form-label fw-bold" for="edit_siswa_ekstra_id">Cabang Ekstrakurikuler <span class="text-danger">*</span></label>
             <select class="form-select" id="edit_siswa_ekstra_id" name="ekstra_id" required>
               <?php foreach ($ekstras as $ek) : ?>
-                <option value="<?=$ek['ekstra_id'];?>"><?=$ek['nama_ekstra'];?></option>
+                <option value="<?=$ek['ekstra_id'];?>" data-tarif="<?=(int)$ek['tarif_standar'];?>">
+                  <?=$ek['nama_ekstra'];?> (Tarif: Rp <?=number_format($ek['tarif_standar'], 0, ',', '.');?>)
+                </option>
               <?php endforeach; ?>
             </select>
           </div>
@@ -437,6 +439,43 @@ document.addEventListener('DOMContentLoaded', function() {
     $.fn.dataTable.ext.errMode = 'none';
   }
 
+  // Auto-fill Nominal Tagihan berdasarkan Cabang Ekstra yang dipilih
+  const selectTambahEkstra = document.getElementById('input_ekstra_id');
+  const inputTambahTagihan = document.getElementById('input_nominal_tagihan');
+  const modalTambahEl = document.getElementById('modalTambahSiswa');
+
+  function syncTagihanFromSelect(selectEl, inputEl) {
+    if (!selectEl || !inputEl) return;
+    const selectedOpt = selectEl.options[selectEl.selectedIndex];
+    const tarif = selectedOpt ? selectedOpt.getAttribute('data-tarif') : '';
+    if (tarif !== null && tarif !== '') {
+      inputEl.value = parseInt(tarif, 10) || 0;
+    } else {
+      inputEl.value = '';
+    }
+  }
+
+  if (selectTambahEkstra && inputTambahTagihan) {
+    selectTambahEkstra.addEventListener('change', function() {
+      syncTagihanFromSelect(selectTambahEkstra, inputTambahTagihan);
+    });
+  }
+
+  if (modalTambahEl) {
+    modalTambahEl.addEventListener('show.bs.modal', function() {
+      syncTagihanFromSelect(selectTambahEkstra, inputTambahTagihan);
+    });
+  }
+
+  // Auto-update Nominal Tagihan saat cabang ekstra diganti di Modal Edit Siswa
+  const selectEditEkstra = document.getElementById('edit_siswa_ekstra_id');
+  const inputEditTagihan = document.getElementById('edit_siswa_tagihan');
+  if (selectEditEkstra && inputEditTagihan) {
+    selectEditEkstra.addEventListener('change', function() {
+      syncTagihanFromSelect(selectEditEkstra, inputEditTagihan);
+    });
+  }
+
   // Edit Siswa Logic
   const editSiswaBtns = document.querySelectorAll('.btn-edit-siswa');
   const modalEditSiswaEl = document.getElementById('modalEditSiswa');
@@ -448,7 +487,7 @@ document.addEventListener('DOMContentLoaded', function() {
       document.getElementById('edit_siswa_ekstra_id').value = this.getAttribute('data-ekstra');
       document.getElementById('edit_siswa_nama').value = this.getAttribute('data-nama');
       document.getElementById('edit_siswa_kelas').value = this.getAttribute('data-kelas');
-      document.getElementById('edit_siswa_tagihan').value = this.getAttribute('data-tagihan');
+      document.getElementById('edit_siswa_tagihan').value = parseInt(this.getAttribute('data-tagihan'), 10) || 0;
       document.getElementById('edit_siswa_bulan').value = this.getAttribute('data-bulan');
       document.getElementById('edit_siswa_tahun').value = this.getAttribute('data-tahun');
       document.getElementById('edit_siswa_status').value = this.getAttribute('data-status');

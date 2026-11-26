@@ -132,8 +132,8 @@ class Periode extends CI_Controller {
             $total_bonus_tier2 += (float)$r['bonus_presensi_tier2'];
             $total_makan       += (float)$r['tunj_makan'];
             $total_ekstra      += (float)$r['honor_ekstra_lunas'];
-            $total_talangan    += (float)$r['talangan_operasional'];
-            $total_kasbon      += (float)$r['potongan_kasbon'];
+            $total_talangan    += ((float)$r['talangan_operasional'] + (float)$r['tunj_transport'] + (float)$r['tunj_kesetaraan'] + (float)$r['apresiasi_sertifikasi']);
+            $total_kasbon      += (float)$r['total_potongan'];
             $total_thp         += (float)$r['take_home_pay'];
         }
 

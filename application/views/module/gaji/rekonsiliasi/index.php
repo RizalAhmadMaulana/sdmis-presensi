@@ -83,6 +83,9 @@
                           data-url="<?=base_url('gaji/rekonsiliasi/kunci_final/'.$recon['periode']['periode_id']);?>"
                           data-title="Kunci Final Periode?"
                           data-text="Apakah Anda yakin ingin mengunci periode <b><?=htmlspecialchars($recon['periode']['nama_periode']);?></b> sebagai FINAL? Status final menandakan payroll siap dicairkan ke bank."
+                          data-variant="success"
+                          data-icon="ti-lock"
+                          data-btn-text="Ya, Kunci Final"
                           title="Kunci Final">
                     <i class="ti ti-lock me-1"></i> Kunci Final
                   </button>
@@ -318,8 +321,8 @@
               <td>Rp <?=number_format($recon['totals']['tunj_makan'], 0, ',', '.');?></td>
               <td class="text-success">Rp <?=number_format($recon['totals']['total_tunj_presensi'], 0, ',', '.');?></td>
               <td>Rp <?=number_format($recon['totals']['honor_ekstra_lunas'], 0, ',', '.');?></td>
-              <td class="text-info">Rp <?=number_format($recon['totals']['talangan_operasional'] + $recon['totals']['tunj_transport'] + $recon['totals']['tunj_kesetaraan'], 0, ',', '.');?></td>
-              <td class="text-danger">-Rp <?=number_format($recon['totals']['potongan_kasbon'], 0, ',', '.');?></td>
+              <td class="text-info">Rp <?=number_format($recon['totals']['talangan_operasional'] + $recon['totals']['tunj_transport'] + $recon['totals']['tunj_kesetaraan'] + $recon['totals']['apresiasi_sertifikasi'], 0, ',', '.');?></td>
+              <td class="text-danger">-Rp <?=number_format($recon['totals']['total_potongan'], 0, ',', '.');?></td>
               <td class="table-success text-success fs-6">Rp <?=number_format($recon['totals']['take_home_pay'], 0, ',', '.');?></td>
             </tr>
           </tbody>
@@ -388,7 +391,7 @@
                 </td>
                 <td class="text-end">Rp <?=number_format($r['honor_ekstra_lunas'], 0, ',', '.');?></td>
                 <td class="text-end">
-                  <?php $adj_plus = $r['talangan_operasional'] + $r['tunj_transport'] + $r['tunj_kesetaraan']; ?>
+                  <?php $adj_plus = $r['talangan_operasional'] + $r['tunj_transport'] + $r['tunj_kesetaraan'] + $r['apresiasi_sertifikasi']; ?>
                   <?php if ($adj_plus > 0) { ?>
                     <span class="text-info fw-bold">+Rp <?=number_format($adj_plus, 0, ',', '.');?></span>
                   <?php } else { ?>

@@ -1460,6 +1460,66 @@ Membangun antarmuka siklus penggajian bulanan dengan fitur **Tombol Sakti ⚡ "H
      Step 13 pada [Migrate_payroll.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/controllers/Migrate_payroll.php) kini langsung memanggil `$this->payroll->sinkronkan_benchmark_november()`.
    - **Hasil Akhir**: Total Periode = Total Rincian Guru (21 Pegawai) = Total Mutasi Bank = **Rp 22.956.000,-** dengan **Selisih: Rp 0,- (Zero Variance / 100% Klop Sempurna)**.
 
+---
+
+### E. Penanganan Kasus Selisih Rp 2.788.000,- (23 Pegawai Terhitung Akibat Stale Slips)
+**Tanggal:** 25 November 2026  
+**Status:** Berhasil Dituntaskan Sempurna  
+
+1. **Akar Masalah (Root Cause)**:
+   - Saat sinkronisasi dijalankan pertama kali, muncul kondisi: Total Periode (Rp 22.956.000,-) vs Total Akumulasi (Rp 25.744.000,-) dengan status **23 dari 21 Pegawai** (Selisih: **Rp 2.788.000,-**).
+   - **Penyebab**:
+     - Tabel `tx_gaji_karyawan` sebelumnya sudah menampung slip dari proses kalkulasi presensi atau seeder percobaan sebelumnya (termasuk akun testing seperti `Coba Rizal` dan slip lama Kak Annas yang belum memiliki rekening bank sebesar Rp 1.380.000,- serta slip ekstra Rp 1.408.000,-).
+     - Total kelebihan: `1.380.000 + 1.408.000 = Rp 2.788.000,-` (23 Pegawai).
+     - Engine seeder sebelumnya belum memiliki logika pembersihan (*stale slips purge*), sehingga slip di luar 21 guru benchmark tetap tertinggal di database.
+
+2. **Solusi Defensif & Pembersihan Otomatis yang Diimplementasikan**:
+   - **Pemberian ID Pegawai Unik Eksklusif (`$valid_pegawai_ids`)**: Setiap pencarian guru benchmark menyertakan klausul `AND pegawai_id NOT IN (...)` sehingga tidak ada 2 baris guru yang berbagi ID pegawai yang sama.
+   - **Pembersihan Baris Duplikat Perorangan**: Jika satu guru memiliki lebih dari 1 slip di periode yang sama, sistem mempertahankan slip pertama dan menghapus baris duplikatnya.
+   - **Pembersihan Menyeluruh Slip Non-Benchmark (Purge Stale Slips)**:
+     Sistem secara otomatis mengeksekusi:
+     ```php
+     DELETE FROM tx_gaji_karyawan WHERE periode_id = ? AND pegawai_id NOT IN ($valid_pegawai_ids);
+     ```
+     serta membersihkan baris terkait di `tx_gaji_komponen_manual`.
+   - **Hasil Akhir**: Hanya tepat **21 pegawai resmi** yang ada pada tabel slip gaji dengan total Take Home Pay **Rp 22.956.000,-** (Selisih: **Rp 0,- / 100% Klop**). Banner otomatis berubah menjadi hijau.
+
+---
+
+## 🔧 Pembaruan Ujicoba Pengguna (User Testing Fixes): Auto-Fill Tagihan Ekstra, Perbaikan Tombol Hitung & Akurasi Engine Kalkulasi
+**Tanggal:** 26 November 2026  
+**Status:** Berhasil Diimplementasikan & Diverifikasi Kode  
+
+### A. Akar Masalah & Perbaikan yang Dilakukan:
+1. **Auto-Fill Nominal Tagihan pada Manajemen Ekstra & Siswa ([ekstra/index.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/views/module/gaji/ekstra/index.php) & [Ekstra.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/controllers/gaji/Ekstra.php))**:
+   - Menambahkan event listener JavaScript pada dropdown Cabang Ekstra (`#input_ekstra_id` & `#edit_siswa_ekstra_id`) serta saat modal `#modalTambahSiswa` dibuka agar field `Nominal Tagihan (Rp)` otomatis terisi dari atribut `data-tarif` cabang ekstra terpilih.
+   - Menambahkan fallback `tarif_standar` pada `Ekstra::edit_siswa()` jika nominal tagihan dikirim kosong/nol.
+2. **Perbaikan Tombol Atas `⚡ HITUNG OTOMATIS DARI PRESENSI` ([periode/detail.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/views/module/gaji/periode/detail.php))**:
+   - *Masalah*: Tombol kuning di header atas menggunakan class `btn-confirm-delete` sehingga memicu modal konfirmasi hapus bertuliskan **"Ya, Hapus"** dengan ikon tempat sampah merah.
+   - *Solusi*: Mengubah tombol atas menjadi tautan aksi langsung (`<a href="gaji/periode/hitung_otomatis/...">`) persis seperti tombol di tabel kosong, sehingga langsung mengeksekusi perhitungan otomatis saat diklik.
+3. **Pembaruan Modal Penyesuaian Manual ([periode/detail.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/views/module/gaji/periode/detail.php))**:
+   - Mengubah teks `Catatan Penyesuaian` menjadi: `"Catatan Penyesuaian: Gunakan form ini untuk mencatat talangan operasional sekolah, potongan kasbon, atau uang transport, dll."`
+   - Menambahkan keterangan informatif pada dropdown `Pilih Guru / Pegawai` ketika periode belum pernah dihitung (`-- Belum ada data slip (Klik Hitung Otomatis dahulu) --`).
+   - Menambahkan opsi kategori `sertifikasi` (`Apresiasi / Tunjangan Khusus`) di dropdown kategori penyesuaian.
+4. **Upgrade Modal Konfirmasi Dinamis ([toast_and_modal.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/views/module/gaji/toast_and_modal.php) & [rekonsiliasi/index.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/views/module/gaji/rekonsiliasi/index.php))**:
+   - Menambahkan dukungan atribut `data-variant`, `data-icon`, dan `data-btn-text` agar tombol `Kunci Final` tampil dengan ikon gembok hijau bertuliskan `"Ya, Kunci Final"` (tidak lagi tampil sebagai tombol hapus merah).
+5. **Perbaikan Akurasi Engine Kalkulasi ([Payroll_model.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/models/Payroll_model.php))**:
+   - **Honor Ekstra Semua Tipe (`hitung_honor_ekstra_pegawai`)**: Memperbaiki bug di mana sebelumnya hanya ekstra bertipe `per_anak` yang dihitung, sedangkan `per_sesi` (contoh: *Renang Pak Tri* Rp 125.000) dan `per_kedatangan` selalu bernilai Rp 0. Sekarang **semua tipe** (`per_anak`, `per_sesi`, `per_kedatangan`) menjumlahkan tagihan siswa lunas + *carry-over* menggunakan `nominal_tagihan` (atau fallback `tarif_standar`).
+   - **Status Kehadiran Riil Presensi (`hitung_presensi_pegawai`)**: Memperbaiki pengecekan status absensi di `tx_absensi` agar mengenali status riil SDMIS yaitu `'hhk'` (*Hadir Hari Kerja*), `'hbhk'` (*Hadir Bukan Hari Kerja*), `'tl'` (*Tugas Luar*), dan `'h'` (legacy), serta perizinan `'s'`/`'sakit'` dan `'i'`/`'izin'` di `tx_request_izin`. Sebelumnya kode hanya mengecek `'h'`, sehingga kehadiran dari scan wajah (`'hhk'`) terbaca 0 hari.
+   - **Tunjangan Khusus Tetap (`tunj_khusus_tetap`) & Kategori Penambahan `lainnya`**: Mengikutsertakan field `m_pegawai_gaji_setting.tunj_khusus_tetap` dalam `kalkulasi_gaji_pegawai()` & `recalculate_single_karyawan()` (kolom `apresiasi_sertifikasi`), memperbaiki query `SELECT` eksplisit agar `pegawai_id` tidak tertimpa `NULL`, dan menangani kategori penambahan `'lainnya'` agar tidak terbuang menjadi Rp 0.
+   - **Sinkronisasi KPI & Rekonsiliasi ([Periode.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/controllers/gaji/Periode.php), [rekonsiliasi/index.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/views/module/gaji/rekonsiliasi/index.php), [rekap_print.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/views/module/gaji/laporan/rekap_print.php))**: Menyertakan `apresiasi_sertifikasi`, `tunj_transport`, `tunj_kesetaraan`, dan `total_potongan` secara konsisten di KPI detail periode & tabel rekapitulasi/rekonsiliasi, serta membersihkan slip pegawai non-aktif saat hitung ulang di `batch_generate_payroll()`.
+   - **Email Asli di Export Bank BRI**: Menambahkan `b.email_pegawai as email` pada `get_rincian_gaji_periode()` dan `get_gaji_karyawan_by_id()`.
+
+### B. Daftar File yang Dimodifikasi:
+1. `sdmis/application/models/Payroll_model.php`
+2. `sdmis/application/controllers/gaji/Ekstra.php`
+3. `sdmis/application/controllers/gaji/Periode.php`
+4. `sdmis/application/views/module/gaji/ekstra/index.php`
+5. `sdmis/application/views/module/gaji/periode/detail.php`
+6. `sdmis/application/views/module/gaji/toast_and_modal.php`
+7. `sdmis/application/views/module/gaji/rekonsiliasi/index.php`
+8. `sdmis/application/views/module/gaji/laporan/rekap_print.php`
+
 
 
 

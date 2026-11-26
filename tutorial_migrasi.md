@@ -546,6 +546,48 @@ git pull origin main
 4. **Download Master Rekap (CSV)**:
    - Klik tombol **Download Master Rekap (CSV)** untuk memperoleh arsip spreadsheet lengkap 26 kolom.
 
+---
+
+## 🔄 Panduan Penerapan & Pengujian Update Ujicoba Pengguna (26 November 2026)
+
+Pembaruan kali ini **tidak memerlukan perubahan struktur/migrasi tabel database baru** (tidak perlu SQL tambahan). Seluruh perubahan berada pada logika perhitungan di model, controller, dan antarmuka view.
+
+### A. Cara Menerapkan & Pengujian di Local (`localhost/mis_dev/sdmis`):
+1. **Pastikan File Tersimpan & Bersihkan Cache Browser**:
+   - Lakukan *hard refresh* (`Ctrl + F5`) pada browser agar skrip JavaScript terbaru (auto-fill tarif ekstra & tombol hitung atas) termuat ulang.
+2. **Uji Auto-Fill Nominal Tagihan Ekstra (`/gaji/ekstra`)**:
+   - Klik **`+ Tambah Peserta Siswa`**, lalu pilih cabang **Panahan (Tarif: Rp 45.000)** atau **Renang (Pak Tri) (Tarif: Rp 125.000)**.
+   - Pastikan kolom **Nominal Tagihan (Rp)** langsung terisi otomatis (`45000` atau `125000`).
+3. **Uji Tombol Atas `⚡ HITUNG OTOMATIS DARI PRESENSI` & Honor Ekstra Per Sesi (`/gaji/periode/detail/2`)**:
+   - Buka detail periode **Mukafaah Desember 2026** (`/gaji/periode/detail/2`).
+   - Klik tombol kuning **`⚡ HITUNG OTOMATIS DARI PRESENSI`** di bagian **kanan atas**.
+   - Pastikan **TIDAK** muncul pop up merah "Ya, Hapus" lagi, melainkan langsung memproses kalkulasi dan memunculkan toast hijau sukses.
+   - Cari **Pak Tri** di tabel rincian: pastikan kolom **Honor Ekstra** kini otomatis menampilkan **Rp 125.000** (berasal dari siswa `Zafiq` yang Lunas di bulan Desember) dan **THP = Rp 1.125.000**.
+4. **Uji Modal Penyesuaian Manual (`/gaji/periode/detail/2`)**:
+   - Klik **`+ Penyesuaian Manual (Talangan / Kasbon)`**.
+   - Pastikan kalimat biru menampilkan: *"Catatan Penyesuaian: Gunakan form ini untuk mencatat talangan operasional sekolah, potongan kasbon, atau uang transport, dll."*
+   - Pastikan dropdown **Pilih Guru / Pegawai** sudah menampilkan seluruh daftar guru aktif yang telah dihitung, dan coba input kategori `Lain-lain` maupun `Apresiasi / Tunjangan Khusus` untuk memastikan nominalnya langsung menambah **THP**.
+5. **Uji Kehadiran Presensi Riil (`hhk`)**:
+   - Jika Pak Tri atau guru lain melakukan presensi masuk di menu **Kehadiran Harian** (status `HHK` / `HBHK` / `TL`) pada rentang tanggal periode aktif, cukup klik **`⚡ HITUNG OTOMATIS DARI PRESENSI`** kembali di detail periode tersebut. Jumlah hari hadir, **Uang Makan**, dan **Bonus Presensi 2-Tier** langsung terbarui otomatis tanpa menghapus penyesuaian manual yang sudah diinput.
+
+### B. Cara Menerapkan Update Ini di Production Hostinger (`https://sdmis.sch.id`):
+1. **Push dari Komputer Lokal ke GitHub**:
+   ```bash
+   cd "C:\xampp\htdocs\mis_dev\sdmis"
+   git status
+   git add .
+   git commit -m "fix: auto-fill ekstra fee, fix top auto-calculate button, support per_sesi/per_kedatangan & hhk attendance"
+   git push origin main
+   ```
+2. **Pull di Server Production Hostinger via SSH**:
+   ```bash
+   ssh sdmis-hostinger "cd ~/domains/sdmis.sch.id/public_html && git pull origin main"
+   ```
+3. **Konfigurasi Database & Pasca-Pull di Hostinger**:
+   - **Database**: Tidak ada penambahan tabel/kolom baru. Struktur tabel penggajian di `u983578927_absensi` sudah kompatibel 100%.
+   - **Cache**: Jika menggunakan Cloudflare atau cache browser, lakukan *hard refresh* (`Ctrl + Shift + R`) saat membuka menu Penggajian. Pastikan folder `application/cache/` tidak menyimpan cache sesi lama jika terjadi perbedaan tampilan.
+   - **Verifikasi Live**: Buka `https://sdmis.sch.id/gaji/periode` dan `https://sdmis.sch.id/gaji/ekstra` untuk memastikan tombol auto-calculate dan auto-fill tarif berjalan mulus.
+
 
 
 

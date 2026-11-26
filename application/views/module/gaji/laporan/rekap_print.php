@@ -257,7 +257,7 @@
             <td class="num"><?=number_format($r['tunj_makan'], 0, ',', '.');?></td>
             <td class="num" style="color: #15803d;"><?=number_format($r['total_tunj_presensi'], 0, ',', '.');?></td>
             <td class="num"><?=number_format($r['honor_ekstra_lunas'], 0, ',', '.');?></td>
-            <td class="num"><?=number_format($r['talangan_operasional'] + $r['tunj_transport'] + $r['tunj_kesetaraan'], 0, ',', '.');?></td>
+            <td class="num"><?=number_format($r['talangan_operasional'] + $r['tunj_transport'] + $r['tunj_kesetaraan'] + $r['apresiasi_sertifikasi'], 0, ',', '.');?></td>
             <td class="num"><?=number_format($r['total_penghasilan_kotor'], 0, ',', '.');?></td>
             <td class="num" style="color: #b91c1c;">-<?=number_format($r['total_potongan'], 0, ',', '.');?></td>
             <td class="num" style="background: #f0fdf4; font-weight: 800; color: #166534;">
@@ -282,7 +282,7 @@
           <td class="num"><?=number_format($recon['totals']['tunj_makan'], 0, ',', '.');?></td>
           <td class="num" style="color: #15803d;"><?=number_format($recon['totals']['total_tunj_presensi'], 0, ',', '.');?></td>
           <td class="num"><?=number_format($recon['totals']['honor_ekstra_lunas'], 0, ',', '.');?></td>
-          <td class="num"><?=number_format($recon['totals']['talangan_operasional'] + $recon['totals']['tunj_transport'] + $recon['totals']['tunj_kesetaraan'], 0, ',', '.');?></td>
+          <td class="num"><?=number_format($recon['totals']['talangan_operasional'] + $recon['totals']['tunj_transport'] + $recon['totals']['tunj_kesetaraan'] + $recon['totals']['apresiasi_sertifikasi'], 0, ',', '.');?></td>
           <td class="num"><?=number_format($recon['totals']['total_penghasilan_kotor'], 0, ',', '.');?></td>
           <td class="num" style="color: #b91c1c;">-<?=number_format($recon['totals']['total_potongan'], 0, ',', '.');?></td>
           <td class="num" style="background: #dcfce7; color: #14532d; font-size: 11px;">

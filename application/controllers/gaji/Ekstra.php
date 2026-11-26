@@ -209,6 +209,12 @@ class Ekstra extends CI_Controller {
             return;
         }
 
+        // Jika nominal tagihan kosong / 0, ambil default dari tarif cabang ekstra
+        if ($nominal_tagihan <= 0 && $ekstra_id > 0) {
+            $ek = $this->db->get_where('m_ekstra', ['ekstra_id' => $ekstra_id])->row_array();
+            if ($ek) $nominal_tagihan = (float)$ek['tarif_standar'];
+        }
+
         $data_save = [
             'ekstra_id'       => $ekstra_id,
             'nama_siswa'      => $nama_siswa,

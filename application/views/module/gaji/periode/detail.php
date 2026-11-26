@@ -26,20 +26,20 @@
     <div class="d-flex gap-2">
       <!-- TOMBOL SAKTI HITUNG OTOMATIS -->
       <?php if ($periode['status_periode'] !== 'final') { ?>
-        <button type="button" 
-           class="btn btn-warning btn-lg text-dark fw-bold shadow pulse-btn btn-confirm-delete"
-           data-url="<?=base_url('gaji/periode/hitung_otomatis/'.$periode['periode_id']);?>"
-           data-title="⚡ Hitung Otomatis dari Presensi?"
-           data-text="Sistem akan memproses seluruh riwayat presensi biometrik, bonus kedisiplinan 2-tier (06.48 & 06.30), uang makan, masa kerja, dan ekstra lunas untuk periode ini."
-           title="Hitung Otomatis">
+        <a href="<?=base_url('gaji/periode/hitung_otomatis/'.$periode['periode_id']);?>"
+           class="btn btn-warning btn-lg text-dark fw-bold shadow pulse-btn"
+           title="Hitung Otomatis dari Presensi">
           <i class="ti ti-bolt me-1 fs-4"></i> ⚡ HITUNG OTOMATIS DARI PRESENSI
-        </button>
+        </a>
 
         <button type="button" 
            class="btn btn-outline-success btn-confirm-delete"
            data-url="<?=base_url('gaji/periode/kunci_periode/'.$periode['periode_id']);?>"
            data-title="Kunci Periode Sebagai Final?"
            data-text="Apakah Anda yakin ingin MENGUNCI periode ini sebagai FINAL? Periode yang dikunci siap dicairkan ke bank."
+           data-variant="success"
+           data-icon="ti-lock"
+           data-btn-text="Ya, Kunci Final"
            title="Kunci Final">
           <i class="ti ti-lock me-1"></i> Kunci Final
         </button>
@@ -188,6 +188,9 @@
                   <?php if ($r['tunj_struktural'] > 0) { ?>
                     <div class="small text-muted">+Rp <?=number_format($r['tunj_struktural'], 0, ',', '.');?> (Struktural)</div>
                   <?php } ?>
+                  <?php if ($r['apresiasi_sertifikasi'] > 0) { ?>
+                    <div class="small text-primary">+Rp <?=number_format($r['apresiasi_sertifikasi'], 0, ',', '.');?> (Khusus / Apresiasi)</div>
+                  <?php } ?>
                 </td>
 
                 <!-- Presensi & Bonus 2-Tier -->
@@ -322,17 +325,21 @@
         
         <div class="modal-body">
           <div class="alert alert-info py-2 px-3 small mb-3">
-            <i class="ti ti-info-circle me-1"></i> <strong>Catatan Penyesuaian:</strong> Gunakan form ini untuk mencatat talangan operasional sekolah (Pak Anwar, Pak Nuki, Bunda Dewi), potongan kasbon, atau uang transport.
+            <i class="ti ti-info-circle me-1"></i> <strong>Catatan Penyesuaian:</strong> Gunakan form ini untuk mencatat talangan operasional sekolah, potongan kasbon, atau uang transport, dll.
           </div>
 
           <!-- Pilih Pegawai -->
           <div class="mb-3">
             <label class="form-label fw-bold" for="adj_gaji_id">Pilih Guru / Pegawai <span class="text-danger">*</span></label>
             <select class="form-select" id="adj_gaji_id" name="gaji_id" required>
-              <option value="">-- Pilih Guru / Pegawai --</option>
-              <?php foreach ($rincian as $r) : ?>
-                <option value="<?=$r['gaji_id'];?>"><?=$r['nama_pegawai'];?></option>
-              <?php endforeach; ?>
+              <?php if (empty($rincian)) { ?>
+                <option value="">-- Belum ada data slip (Klik Hitung Otomatis dahulu) --</option>
+              <?php } else { ?>
+                <option value="">-- Pilih Guru / Pegawai --</option>
+                <?php foreach ($rincian as $r) : ?>
+                  <option value="<?=$r['gaji_id'];?>"><?=$r['nama_pegawai'];?></option>
+                <?php endforeach; ?>
+              <?php } ?>
             </select>
           </div>
 
@@ -353,6 +360,7 @@
                 <option value="kasbon">Potongan Kasbon / Pinjaman</option>
                 <option value="transport">Tunjangan Transport Luar Kota / Klaten</option>
                 <option value="kesetaraan">Insentif ANBK / TKA / Data</option>
+                <option value="sertifikasi">Apresiasi / Tunjangan Khusus</option>
                 <option value="lainnya">Lain-lain</option>
               </select>
             </div>
