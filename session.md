@@ -1582,7 +1582,30 @@ Pada skema sebelumnya, seluruh cabang ekstra dicampur dalam 1 checklist nama sis
      - Garis tabel (*thin border*) penuh di seluruh sel header, data, hingga baris trailer (`COUNT`, `TOTAL`, `CHECK`, `VALUEDATE (DDMMYYYY)`, `DEBITACCOUNT` ter-merge `A:C` dengan nilai di kolom `D`).
      - Header tebal dengan arsiran lembut biru-abu (`#D9E1F2`) & baris kontrol dengan arsiran `#F2F2F2`, baris header di-*freeze*, dan lebar kolom terhitung otomatis agar nama & email tidak terpotong.
      - Format sel **Teks (`@`)** pada kolom **`ACCOUNT`**, **`DEBITACCOUNT`**, **`VALUEDATE`**, **`CHECK`**, **`NIP`**, dan **`CUSTOMERREFF`** sehingga nomor rekening panjang (misal `690201016686533`) **tidak lagi berubah menjadi notasi ilmiah `6.90201E+14`** dan angka `0` di depan (misal `003501092708504`) tetap terjaga utuh.
-     - Tetap menyediakan tautan sekunder **`Unduh CSV Mentah (.csv)`** (`?format=csv`) apabila admin perlu unggah CSV langsung ke portal internet banking bank.
+    - Tetap menyediakan tautan sekunder **`Unduh CSV Mentah (.csv)`** (`?format=csv`) apabila admin perlu unggah CSV langsung ke portal internet banking bank.
+
+---
+
+## 🐛 Perbaikan Error HTTP 500 Download PDF Slip & Rekapitulasi (Kompatibilitas PHP 8.4+)
+**Tanggal:** 26 November 2026  
+**Status:** Selesai Diimplementasikan & Diverifikasi Kode  
+
+### A. Akar Masalah (*Root Cause*):
+- Berdasarkan log Apache XAMPP (`C:/xampp/apache/logs/error.log`), server lokal berjalan pada **Apache/2.4.51 + PHP/8.4.5**.
+- Library `dompdf/dompdf` (`^0.8.3` di `vendor/`) memasang error handler custom via `set_error_handler(["\Dompdf\Helpers", "record_warnings"])` (`Dompdf.php` baris 466) saat `loadHtml()` dipanggil.
+- Di PHP 8.4.5, konstanta `E_STRICT` sudah berstatus deprecated (`Constant E_STRICT is deprecated`, flag `8192` / `E_DEPRECATED`) ketika CodeIgniter memuat `system/core/Exceptions.php` baris 75. Handler `Helpers::record_warnings()` (baris 506) hanya mengizinkan `E_WARNING | E_NOTICE | E_USER_NOTICE | E_USER_WARNING`, sehingga langsung melempar **`Uncaught Dompdf\Exception: Constant E_STRICT is deprecated 8192`** dan menghasilkan halaman **HTTP ERROR 500** pada endpoint `slip_batch`, `rekap`, maupun `slip`.
+- Selain itu, folder `/vendor/` masuk ke `.gitignore` (baris 18), sehingga ketergantungan pada `vendor/dompdf` juga berisiko saat deploy via `git pull` ke Hostinger.
+
+### B. Solusi & Perubahan Kode Program:
+1. **[Simple_pdf.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/libraries/Simple_pdf.php)** *(Library Baru — Zero Dependency)*:
+   - Generator **PDF 1.4 vektor pure-PHP** tanpa dependensi eksternal/Dompdf yang berjalan bersih di PHP 8.4+ maupun versi PHP sebelumnya, ikut tersimpan di Git (`application/libraries/`).
+   - Dilengkapi tabel metrik lebar karakter Adobe Helvetica (Regular, Bold, Oblique) pada `_init_font_widths()` untuk perataan dan pembungkusan teks presisi, serta dukungan penyematan gambar logo PNG ke RGB JPEG (`/DCTDecode`) via ekstensi `gd`.
+2. **[Payroll_pdf.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/libraries/Payroll_pdf.php)** *(Library Baru — Renderer Dokumen Yayasan)*:
+   - Menggambar dokumen PDF resmi **hitam-putih (`#000000`) & penekanan bold terstruktur** dengan kop surat resmi SDMIS (`_draw_kop()`):
+     - **Slip Mukafaah & Gaji A5 Portrait** (perorangan & massal per halaman beserta blok tanda tangan Penerima & Bendahara Yayasan `Dewi Fatmala Sari, S.Pd`).
+     - **Rekapitulasi Pembukuan Yayasan A4 Landscape** (kolom lengkap termasuk `TUNJ. TMK`, `WALI / STR`, `U. MAKAN`, `BONUS`, `EKSTRA`, `TALANGAN / ADJ`, `TOTAL KOTOR`, `POTONGAN`, `TAKE HOME PAY`, `REKENING BANK`, serta Grand Total & tanda tangan).
+3. **[Laporan.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/controllers/gaji/Laporan.php)**:
+   - Mengganti pemanggilan `Dompdf` pada endpoint `slip`, `slip_batch`, dan `rekap` agar memuat library `simple_pdf` & `payroll_pdf` untuk langsung menghasilkan unduhan file PDF.
 
 
 

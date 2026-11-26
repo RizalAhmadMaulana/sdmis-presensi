@@ -689,15 +689,16 @@ Pembaruan ini mengubah menu **Manajemen Ekstra & Honor Pengampu** (`gaji/ekstra`
 
 Pembaruan ini berfokus pada konversi halaman cetak slip/rekapitulasi menjadi **unduhan file PDF resmi bergaya akuntansi hitam-putih formal**, perbaikan fungsi `terbilang()`, serta peningkatan export mutasi bank dari CSV polos menjadi **Excel `.xlsx` asli ber-border penuh dengan nomor rekening format Teks (`@`)**.
 
-> **Status Database:** Tidak ada perubahan tabel maupun kolom database tambahan pada pembaruan ini (tidak perlu menjalankan SQL baru). Hanya memanfaatkan library `dompdf/dompdf` yang sudah ada di folder `vendor/` serta library baru internal `Simple_xlsx`.
+> **Status Database & Dependensi:** Tidak ada perubahan tabel maupun kolom database tambahan pada pembaruan ini (tidak perlu menjalankan SQL baru). Pembuatan PDF kini sepenuhnya memakai library internal pure-PHP zero-dependency **`Simple_pdf`** & **`Payroll_pdf`** (menggantikan `dompdf/dompdf` v0.8.3 yang sebelumnya menimbulkan error HTTP 500 pada PHP 8.4 akibat pengecualian `Constant E_STRICT is deprecated`) serta **`Simple_xlsx`**. Ketiganya ikut langsung dalam repository Git (`application/libraries/`), sehingga **tidak memerlukan folder `vendor/`**.
 
 ### A. Cara Menerapkan & Pengujian di Local (`localhost/mis_dev/sdmis`):
-1. **Pastikan Ekstensi PHP Lokal Aktif & Hard Refresh Browser**:
-   - Library `dompdf/dompdf` membutuhkan ekstensi PHP `dom` & `mbstring` (aktif secara default di XAMPP). Library `Simple_xlsx` menggunakan `zip` (`ZipArchive`) dan tetap memiliki *fallback* otomatis pure-PHP bila ekstensi zip tidak aktif.
-   - Lakukan **`Ctrl + F5`** (*hard refresh*) pada browser Anda.
+1. **Verifikasi Ekstensi PHP Lokal & Hard Refresh Browser**:
+   - **`Simple_pdf` & `Payroll_pdf`** berjalan murni di PHP 7.4 s.d. PHP 8.4+ tanpa library eksternal (ekstensi `gd` bawaan XAMPP dipakai otomatis untuk menyematkan logo PNG pada kop PDF; bila `gd` mati, PDF tetap terunduh aman tanpa logo).
+   - **`Simple_xlsx`** memakai `zip` (`ZipArchive`) dan tetap memiliki *fallback* otomatis pure-PHP bila ekstensi zip tidak aktif.
+   - Lakukan **`Ctrl + F5`** (*hard refresh*) pada browser Anda sebelum menguji tombol unduhan.
 2. **Uji Menu Slip Gaji & Rekapitulasi (`http://localhost/mis_dev/sdmis/gaji/laporan`)**:
    - Pastikan label tombol sudah berubah menjadi **`Unduh Semua Slip`**, **`Unduh Rekapitulasi`**, kolom tabel **`Aksi`**, dan tombol per guru **`Unduh File`**.
-   - Klik **`Unduh File`** pada salah satu guru: file `Slip_Mukafaah_<Nama>_<Bulan>_<Tahun>.pdf` langsung terunduh. Buka PDF-nya dan pastikan:
+   - Klik **`Unduh File`** pada salah satu guru: file `Slip_Mukafaah_<Nama>_<Bulan>_<Tahun>.pdf` langsung terunduh tanpa HTTP Error 500. Buka PDF-nya dan pastikan:
      - Ukuran halaman pas 1 lembar **A5 Portrait** dengan logo SDMIS, teks hitam bersih, *bold* rapi pada judul/total/THP, tanpa potongan `-0`, serta kalimat **Terbilang** terbaca normal (misal `# Lima Ratus Lima Puluh Ribu Rupiah #`).
    - Klik **`Unduh Semua Slip`**: file PDF massal terunduh dan tiap guru berada tepat 1 halaman A5.
    - Klik **`Unduh Rekapitulasi`**: file PDF **A4 Landscape** resmi yayasan terunduh rapi lengkap dengan Grand Total dan tanda tangan.
@@ -713,18 +714,18 @@ Pembaruan ini berfokus pada konversi halaman cetak slip/rekapitulasi menjadi **u
    cd "C:\xampp\htdocs\mis_dev\sdmis"
    git status
    git add .
-   git commit -m "feat: direct PDF download formal hitam-putih (Dompdf) & styled Excel (.xlsx) export mutasi bank"
+   git commit -m "fix(pdf): pure-PHP Simple_pdf & Payroll_pdf untuk PHP 8.4+ dan styled Excel (.xlsx) mutasi bank"
    git push origin main
    ```
 2. **Pull Code Terbaru di Production Hostinger (SSH)**:
    ```bash
    ssh sdmis-hostinger "cd ~/domains/sdmis.sch.id/public_html && git pull origin main"
    ```
-3. **Verifikasi Folder `vendor/` & Konfigurasi Server di Hostinger**:
+3. **Verifikasi Server & Ekstensi di Hostinger**:
    - **Database**: Tidak ada migrasi database tambahan yang diperlukan.
-   - **Vendor Dompdf**: Pastikan folder `vendor/dompdf/dompdf` sudah tersedia di `public_html/vendor/` di Hostinger (jika `vendor/` diabaikan `.gitignore` dan belum ter-upload, jalankan `composer install --no-dev` di SSH Hostinger pada `~/domains/sdmis.sch.id/public_html`, atau unggah folder `vendor/` via File Manager Hostinger).
-   - **Ekstensi PHP Hostinger (hPanel -> PHP Configuration -> Extensions)**: Pastikan ekstensi `dom`, `mbstring`, dan `gd` (atau `zip`) berstatus aktif agar Dompdf merender logo PNG & PDF tanpa kendala.
-   - **Hard Refresh**: Buka `https://sdmis.sch.id/gaji/laporan` dan `https://sdmis.sch.id/gaji/export_bank`, tekan **`Ctrl + Shift + R`**, lalu uji unduh 1 slip PDF dan 1 file Excel CMS BRI.
+   - **Folder `vendor/` / Composer**: Tidak perlu menjalankan `composer install` maupun mengunggah folder `vendor/dompdf` secara terpisah karena `Simple_pdf.php`, `Payroll_pdf.php`, dan `Simple_xlsx.php` langsung ikut ter-pull di `application/libraries/`.
+   - **Ekstensi PHP Hostinger (hPanel -> PHP Configuration -> Extensions)**: Pastikan ekstensi `gd` berstatus aktif agar logo PNG SDMIS tampil pada kop PDF (dan aktifkan `zip` jika tersedia, walau `Simple_xlsx` tetap berjalan normal melalui fallback pure-PHP).
+   - **Hard Refresh & Uji Live**: Buka `https://sdmis.sch.id/gaji/laporan` dan `https://sdmis.sch.id/gaji/export_bank`, tekan **`Ctrl + Shift + R`**, lalu uji tombol **`Unduh File`**, **`Unduh Semua Slip`**, **`Unduh Rekapitulasi`**, dan **`Unduh File CMS BRI (Excel)`**.
 
 
 
