@@ -94,8 +94,8 @@
                     <i class="ti ti-lock-check me-1 text-success"></i> Periode Terkunci Final
                   </span>
                 <?php } ?>
-                <a href="<?=base_url('gaji/laporan/rekap/'.$recon['periode']['periode_id']);?>" target="_blank" class="btn btn-outline-light">
-                  <i class="ti ti-printer me-1"></i> Cetak Rekap
+                <a href="<?=base_url('gaji/laporan/rekap/'.$recon['periode']['periode_id']);?>" class="btn btn-outline-light">
+                  <i class="ti ti-file-download me-1"></i> Unduh Rekapitulasi
                 </a>
               </div>
             </div>
@@ -209,7 +209,7 @@
               <span class="badge bg-primary me-2">BRI</span> CMS Payroll Bank BRI
             </span>
             <a href="<?=base_url('gaji/export_bank/bri/'.$recon['periode']['periode_id']);?>" class="btn btn-xs btn-outline-primary">
-              <i class="ti ti-download me-1"></i> Export CSV
+              <i class="ti ti-download me-1"></i> Export Excel
             </a>
           </div>
           <div class="card-body p-3">
@@ -237,7 +237,7 @@
               <span class="badge bg-info me-2">BSI</span> CMS Payroll Bank BSI
             </span>
             <a href="<?=base_url('gaji/export_bank/bsi/'.$recon['periode']['periode_id']);?>" class="btn btn-xs btn-outline-info">
-              <i class="ti ti-download me-1"></i> Export CSV
+              <i class="ti ti-download me-1"></i> Export Excel
             </a>
           </div>
           <div class="card-body p-3">
@@ -340,8 +340,8 @@
           <small class="text-muted">Memastikan setiap hak penerimaan guru telah klop dan siap disinkronkan ke bank.</small>
         </div>
         <div class="d-flex gap-2">
-          <a href="<?=base_url('gaji/laporan/slip_batch/'.$recon['periode']['periode_id']);?>" target="_blank" class="btn btn-sm btn-outline-primary">
-            <i class="ti ti-files me-1"></i> Cetak Semua Slip A5
+          <a href="<?=base_url('gaji/laporan/slip_batch/'.$recon['periode']['periode_id']);?>" class="btn btn-sm btn-outline-primary">
+            <i class="ti ti-download me-1"></i> Unduh Semua Slip
           </a>
           <a href="<?=base_url('gaji/export_bank/index/'.$recon['periode']['periode_id']);?>" class="btn btn-sm btn-primary">
             <i class="ti ti-credit-card me-1"></i> Menu Export Bank

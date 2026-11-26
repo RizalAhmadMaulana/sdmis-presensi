@@ -8,11 +8,11 @@
         <span class="text-muted fw-light">Penggajian /</span> Slip Gaji & Rekapitulasi
       </h4>
       <p class="text-muted mb-0 small">
-        Pusat pencetakan dokumen resmi mukafaah: Slip Gaji perorangan format A5, cetak massal (batch print), dan Rekapitulasi Pembukuan Yayasan.
+        Pusat unduh dokumen resmi mukafaah format PDF: Slip Gaji perorangan ukuran A5, unduh semua slip sekaligus, dan Rekapitulasi Pembukuan Yayasan.
       </p>
     </div>
 
-    <!-- Dropdown Pemilihan Periode & Tombol Cetak Massal -->
+    <!-- Dropdown Pemilihan Periode & Tombol Unduh Massal -->
     <div class="d-flex flex-wrap align-items-center gap-2">
       <div class="d-flex align-items-center gap-2">
         <label class="form-label mb-0 small fw-bold text-nowrap"><i class="ti ti-calendar-event me-1"></i> Periode:</label>
@@ -30,11 +30,11 @@
       </div>
 
       <?php if (!empty($rincian)) { ?>
-        <a href="<?=base_url('gaji/laporan/slip_batch/'.$selected_id);?>" target="_blank" class="btn btn-sm btn-primary shadow-sm">
-          <i class="ti ti-printer me-1"></i> Cetak Semua Slip A5 (Batch)
+        <a href="<?=base_url('gaji/laporan/slip_batch/'.$selected_id);?>" class="btn btn-sm btn-primary shadow-sm">
+          <i class="ti ti-download me-1"></i> Unduh Semua Slip
         </a>
-        <a href="<?=base_url('gaji/laporan/rekap/'.$selected_id);?>" target="_blank" class="btn btn-sm btn-outline-success shadow-sm">
-          <i class="ti ti-file-analytics me-1"></i> Cetak Rekapitulasi
+        <a href="<?=base_url('gaji/laporan/rekap/'.$selected_id);?>" class="btn btn-sm btn-outline-success shadow-sm">
+          <i class="ti ti-file-download me-1"></i> Unduh Rekapitulasi
         </a>
       <?php } ?>
     </div>
@@ -77,7 +77,7 @@
           <div class="card-body p-3">
             <span class="text-muted small fw-semibold d-block">Total Slip Tersedia</span>
             <h4 class="card-title mb-0 text-success fw-bold mt-1"><?=count($rincian);?> Slip Guru</h4>
-            <small class="text-muted">Format A5 Siap Cetak</small>
+            <small class="text-muted">Format PDF A5 Siap Unduh</small>
           </div>
         </div>
       </div>
@@ -108,7 +108,7 @@
           <h5 class="card-title mb-0 d-flex align-items-center">
             <i class="ti ti-file-text me-2 text-primary"></i> Daftar Slip Mukafaah Guru & Karyawan
           </h5>
-          <small class="text-muted">Pilih tombol Cetak pada baris guru untuk mencetak lembar slip A5 perorangan.</small>
+          <small class="text-muted">Pilih tombol Unduh File pada baris guru untuk mengunduh lembar slip PDF (ukuran A5) perorangan.</small>
         </div>
       </div>
 
@@ -123,7 +123,7 @@
               <th class="text-end text-danger">Potongan</th>
               <th class="text-end text-success">Take Home Pay (THP)</th>
               <th>Rekening Pembayaran</th>
-              <th class="text-center" style="width: 130px;">Aksi Cetak</th>
+              <th class="text-center" style="width: 130px;">Aksi</th>
             </tr>
           </thead>
           <tbody>
@@ -168,8 +168,8 @@
                   <?php } ?>
                 </td>
                 <td class="text-center align-middle">
-                  <a href="<?=base_url('gaji/laporan/slip/'.$r['gaji_id']);?>" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill px-3">
-                    <i class="ti ti-printer me-1"></i> Cetak A5
+                  <a href="<?=base_url('gaji/laporan/slip/'.$r['gaji_id']);?>" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                    <i class="ti ti-download me-1"></i> Unduh File
                   </a>
                 </td>
               </tr>

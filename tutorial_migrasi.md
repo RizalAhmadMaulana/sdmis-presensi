@@ -588,6 +588,144 @@ Pembaruan kali ini **tidak memerlukan perubahan struktur/migrasi tabel database 
    - **Cache**: Jika menggunakan Cloudflare atau cache browser, lakukan *hard refresh* (`Ctrl + Shift + R`) saat membuka menu Penggajian. Pastikan folder `application/cache/` tidak menyimpan cache sesi lama jika terjadi perbedaan tampilan.
    - **Verifikasi Live**: Buka `https://sdmis.sch.id/gaji/periode` dan `https://sdmis.sch.id/gaji/ekstra` untuk memastikan tombol auto-calculate dan auto-fill tarif berjalan mulus.
 
+---
+
+## 🚀 Panduan Update Arsitektur 2-Tab Manajemen Ekstra (26 November 2026)
+
+Pembaruan ini mengubah menu **Manajemen Ekstra & Honor Pengampu** (`gaji/ekstra`) menjadi **2 Tab terpisah**:
+- **Tab 1 (Per Anak & Tunggakan Siswa)**: Blok A Input Cepat jumlah anak lunas (`tx_ekstra_rekap`) + Blok B Daftar Tunggakan Siswa & *Carry-Over* (`tx_ekstra_siswa` + `bulan_cair`/`tahun_cair`).
+- **Tab 2 (Rekap Sesi & Kedatangan Guru)**: Kartu ringkasan per cabang & log multi-baris per sesi / per kedatangan (`tx_ekstra_sesi`).
+
+> **Pembaruan Struktur Database:** Ada penambahan **2 tabel baru (`tx_ekstra_rekap` & `tx_ekstra_sesi`)** dan **2 kolom baru (`bulan_cair` & `tahun_cair`)** pada tabel `tx_ekstra_siswa`, yang otomatis dieksekusi oleh `Migrate_payroll` (Step 14–16) maupun oleh *self-healing guard* di `Payroll_model`.
+
+### A. Cara Menerapkan & Pengujian di Local (`localhost/mis_dev/sdmis`):
+1. **Jalankan Auto-Migration Database Lokal**:
+   - Buka browser dan akses: **`http://localhost/mis_dev/sdmis/migrate_payroll`**
+   - Pastikan **Step 14** (`tx_ekstra_rekap`), **Step 15** (`tx_ekstra_sesi`), dan **Step 16** (`Upgrade Kolom Carry-Over` + `Pembersihan Data Uji Ekstra` seperti baris `Zafiq` & `Zaira` di cabang `Renang (Pak Tri)`) berstatus **SUKSES / TERSEDIA**.
+2. **Bersihkan Cache Browser**:
+   - Buka menu **Penggajian -> Manajemen Ekstra & Siswa**, lalu tekan **`Ctrl + F5`** (*hard refresh*).
+3. **Skenario Uji Coba Tab 1 (Ekstra Per Anak + Carry-Over)**:
+   - Pilih filter **Bulan: Desember**, **Tahun: 2026**.
+   - Di **Blok A (Input Cepat)**, isi angka siswa lunas misalnya pada **Panahan (Pak Anang)** = `24` (Total live langsung Rp 1.080.000), lalu klik **Simpan Rekap Lunas**.
+   - Di **Blok B (Daftar Tunggakan)**, klik **`Catat Tunggakan Siswa`**, pilih cabang **Panahan**, isi nama siswa belum bayar (misal `Zaki`, Bulan Tunggakan `November 2026`), lalu klik **Simpan Tunggakan** (status: `BELUM LUNAS`).
+   - Klik tombol hijau **`Lunasi`** pada baris `Zaki`, pilih pencairan ke **Desember 2026**, lalu **Konfirmasi Lunas**. Cek Blok A pada baris **Panahan**: kolom Carry-Over langsung bertambah `+1 siswa (Rp 45.000)` sehingga total honor cair Pak Anang menjadi **Rp 1.125.000**.
+4. **Skenario Uji Coba Tab 2 (Rekap Sesi & Kedatangan Guru — Multi Baris)**:
+   - Klik tab **`Tab 2: Rekap Sesi & Kedatangan Guru`**.
+   - Klik **`+ Catat Sesi / Kedatangan`**, pilih **Renang (Pak Tri)** (`tarif` otomatis `125000`), isi `Jumlah Sesi = 2` (atau pecah 2 baris masing-masing `1` sesi dengan tanggal berbeda). Pastikan estimasi total tampil **Rp 250.000** lalu simpan.
+   - Uji juga pencatatan multi-baris pada **Tahfidz & Tasmi (Kak Annas)**: buat Baris 1 (`17` kedatangan, keterangan `Tahfidz PAUD`) dan Baris 2 (`4` kedatangan, keterangan `Tahfidz SD`). Kartu ringkasan Kak Annas langsung mengakumulasi **21 Kedatangan = Rp 525.000**.
+5. **Tarik Hasil ke Slip Mukafaah Desember 2026**:
+   - Buka menu **Periode & Hitung Gaji -> Detail `Mukafaah Desember 2026`** (`/gaji/periode/detail/2`), lalu klik **`⚡ HITUNG OTOMATIS DARI PRESENSI`**.
+   - Pastikan kolom **Honor Ekstra** pada baris **Pak Tri** (`Rp 250.000`), **Pak Anang** (`Rp 1.125.000`), dan **Kak Annas** (`Rp 525.000`) terhitung persis sama dengan Tab 1 + Tab 2, sementara periode **November 2026 (`FINAL`)** tetap aman di angka benchmark **Rp 22.956.000,-**.
+
+### B. Cara Menerapkan Update Ini di Production Hostinger (`https://sdmis.sch.id`):
+1. **Push Update dari Komputer Lokal ke GitHub**:
+   ```bash
+   cd "C:\xampp\htdocs\mis_dev\sdmis"
+   git status
+   git add .
+   git commit -m "feat: redesign manajemen ekstra 2-tab (rekap cepat per_anak + tunggakan carry-over & log multi-baris per_sesi/per_kedatangan)"
+   git push origin main
+   ```
+2. **Pull Code Terbaru di Production Hostinger (SSH)**:
+   ```bash
+   ssh sdmis-hostinger "cd ~/domains/sdmis.sch.id/public_html && git pull origin main"
+   ```
+3. **Konfigurasi Database Pasca-Pull di Hostinger (WAJIB DILAKUKAN 1 KALI)**:
+   - Segera buka URL Auto-Migrasi di browser: **`https://sdmis.sch.id/migrate_payroll`**
+   - Halaman ini aman dijalankan ulang (*idempotent*) dan akan otomatis mengeksekusi **Step 14–16** pada database production `u983578927_absensi`:
+     1. Membuat tabel `tx_ekstra_rekap` (Input Cepat Tab 1 Blok A).
+     2. Membuat tabel `tx_ekstra_sesi` (Log Multi-Baris Tab 2).
+     3. Menambahkan kolom `bulan_cair` & `tahun_cair` ke tabel `tx_ekstra_siswa`.
+     4. Membersihkan baris data uji coba `tx_ekstra_siswa` yang tertaut pada cabang `per_sesi`/`per_kedatangan` jika ada.
+   - Pastikan status banner migrasi berwarna hijau bertuliskan **"BERHASIL SEMPURNA!"**. *(Catatan: Tabel **Benchmark November 2026 (`Rp 22.956.000,-`)** tetap terjaga aman dan klop).*
+4. **Opsional — Backup SQL Manual via phpMyAdmin Hostinger (Jika Akses `/migrate_payroll` Dibatasi)**:
+   Jika server produksi sengaja menonaktifkan akses URL `migrate_payroll`, jalankan query ini pada database `u983578927_absensi` di phpMyAdmin Hostinger:
+   ```sql
+   CREATE TABLE IF NOT EXISTS `tx_ekstra_rekap` (
+     `rekap_id` INT(11) NOT NULL AUTO_INCREMENT,
+     `ekstra_id` INT(11) NOT NULL,
+     `bulan` TINYINT(2) NOT NULL,
+     `tahun` INT(4) NOT NULL,
+     `jumlah_lunas` INT(11) NOT NULL DEFAULT 0,
+     `tarif_satuan` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+     `keterangan` VARCHAR(255) DEFAULT NULL,
+     `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+     PRIMARY KEY (`rekap_id`),
+     UNIQUE KEY `idx_rekap_unik` (`ekstra_id`, `bulan`, `tahun`)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+   CREATE TABLE IF NOT EXISTS `tx_ekstra_sesi` (
+     `sesi_id` INT(11) NOT NULL AUTO_INCREMENT,
+     `ekstra_id` INT(11) NOT NULL,
+     `bulan` TINYINT(2) NOT NULL,
+     `tahun` INT(4) NOT NULL,
+     `tanggal_sesi` DATE DEFAULT NULL,
+     `jumlah_sesi` INT(11) NOT NULL DEFAULT 1,
+     `tarif_per_sesi` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+     `total_honor` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+     `keterangan` VARCHAR(255) DEFAULT NULL,
+     `status` ENUM('disetujui','pending') NOT NULL DEFAULT 'disetujui',
+     `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+     `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+     PRIMARY KEY (`sesi_id`),
+     KEY `idx_sesi_periode` (`ekstra_id`, `bulan`, `tahun`)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+   ALTER TABLE `tx_ekstra_siswa`
+     ADD COLUMN `bulan_cair` TINYINT(2) NULL DEFAULT NULL AFTER `tanggal_bayar`,
+     ADD COLUMN `tahun_cair` INT(4) NULL DEFAULT NULL AFTER `bulan_cair`;
+
+   DELETE s FROM `tx_ekstra_siswa` s
+   INNER JOIN `m_ekstra` e ON s.ekstra_id = e.ekstra_id
+   WHERE e.tipe_honor != 'per_anak';
+   ```
+5. **Verifikasi Akhir Production**:
+   - Buka `https://sdmis.sch.id/gaji/ekstra` dan tekan **`Ctrl + Shift + R`**.
+   - Cek **Master Cabang Ekstra** (`/gaji/ekstra/cabang`): pastikan tiap cabang sudah memiliki `Tipe Honor` yang sesuai (`Per Anak` vs `Per Sesi` / `Per Kedatangan`) dan Guru Pengampu sudah terpetakan agar otomatis muncul di Tab 1 atau Tab 2 serta masuk hitungan Mukafaah.
+
+---
+
+## 📄 Panduan Penerapan Update Download PDF Resmi & Export Bank Excel `.xlsx` (26 November 2026)
+
+Pembaruan ini berfokus pada konversi halaman cetak slip/rekapitulasi menjadi **unduhan file PDF resmi bergaya akuntansi hitam-putih formal**, perbaikan fungsi `terbilang()`, serta peningkatan export mutasi bank dari CSV polos menjadi **Excel `.xlsx` asli ber-border penuh dengan nomor rekening format Teks (`@`)**.
+
+> **Status Database:** Tidak ada perubahan tabel maupun kolom database tambahan pada pembaruan ini (tidak perlu menjalankan SQL baru). Hanya memanfaatkan library `dompdf/dompdf` yang sudah ada di folder `vendor/` serta library baru internal `Simple_xlsx`.
+
+### A. Cara Menerapkan & Pengujian di Local (`localhost/mis_dev/sdmis`):
+1. **Pastikan Ekstensi PHP Lokal Aktif & Hard Refresh Browser**:
+   - Library `dompdf/dompdf` membutuhkan ekstensi PHP `dom` & `mbstring` (aktif secara default di XAMPP). Library `Simple_xlsx` menggunakan `zip` (`ZipArchive`) dan tetap memiliki *fallback* otomatis pure-PHP bila ekstensi zip tidak aktif.
+   - Lakukan **`Ctrl + F5`** (*hard refresh*) pada browser Anda.
+2. **Uji Menu Slip Gaji & Rekapitulasi (`http://localhost/mis_dev/sdmis/gaji/laporan`)**:
+   - Pastikan label tombol sudah berubah menjadi **`Unduh Semua Slip`**, **`Unduh Rekapitulasi`**, kolom tabel **`Aksi`**, dan tombol per guru **`Unduh File`**.
+   - Klik **`Unduh File`** pada salah satu guru: file `Slip_Mukafaah_<Nama>_<Bulan>_<Tahun>.pdf` langsung terunduh. Buka PDF-nya dan pastikan:
+     - Ukuran halaman pas 1 lembar **A5 Portrait** dengan logo SDMIS, teks hitam bersih, *bold* rapi pada judul/total/THP, tanpa potongan `-0`, serta kalimat **Terbilang** terbaca normal (misal `# Lima Ratus Lima Puluh Ribu Rupiah #`).
+   - Klik **`Unduh Semua Slip`**: file PDF massal terunduh dan tiap guru berada tepat 1 halaman A5.
+   - Klik **`Unduh Rekapitulasi`**: file PDF **A4 Landscape** resmi yayasan terunduh rapi lengkap dengan Grand Total dan tanda tangan.
+3. **Uji Menu Export Mutasi Bank (`http://localhost/mis_dev/sdmis/gaji/export_bank`)**:
+   - Klik **`Unduh File CMS BRI (Excel)`** (`Payroll_CMS_BRI_SDMIS_...xlsx`) dan buka di Microsoft Excel:
+     - Pastikan **tidak muncul notasi ilmiah (`6.90201E+14`)** pada kolom `ACCOUNT`, `CHECK`, maupun `DEBITACCOUNT`, serta angka `0` di depan (misal `003501092708504`) tetap tampil utuh.
+     - Pastikan seluruh baris tabel dan 5 baris kontrol bawah (`COUNT`, `TOTAL`, `CHECK`, `VALUEDATE (DDMMYYYY)`, `DEBITACCOUNT`) memiliki **garis border hitam penuh**, header biru-abu tebal ter-*freeze*, dan seluruh teks nama serta email terbaca utuh.
+   - Uji juga **`Unduh File CMS BSI (Excel)`** dan **`Unduh Master Rekap (Excel)`** (serta opsi sekunder `.csv` bila diperlukan upload ke portal CMS bank).
+
+### B. Cara Menerapkan Update Ini di Production Hostinger (`https://sdmis.sch.id`):
+1. **Push Update dari Komputer Lokal ke GitHub**:
+   ```bash
+   cd "C:\xampp\htdocs\mis_dev\sdmis"
+   git status
+   git add .
+   git commit -m "feat: direct PDF download formal hitam-putih (Dompdf) & styled Excel (.xlsx) export mutasi bank"
+   git push origin main
+   ```
+2. **Pull Code Terbaru di Production Hostinger (SSH)**:
+   ```bash
+   ssh sdmis-hostinger "cd ~/domains/sdmis.sch.id/public_html && git pull origin main"
+   ```
+3. **Verifikasi Folder `vendor/` & Konfigurasi Server di Hostinger**:
+   - **Database**: Tidak ada migrasi database tambahan yang diperlukan.
+   - **Vendor Dompdf**: Pastikan folder `vendor/dompdf/dompdf` sudah tersedia di `public_html/vendor/` di Hostinger (jika `vendor/` diabaikan `.gitignore` dan belum ter-upload, jalankan `composer install --no-dev` di SSH Hostinger pada `~/domains/sdmis.sch.id/public_html`, atau unggah folder `vendor/` via File Manager Hostinger).
+   - **Ekstensi PHP Hostinger (hPanel -> PHP Configuration -> Extensions)**: Pastikan ekstensi `dom`, `mbstring`, dan `gd` (atau `zip`) berstatus aktif agar Dompdf merender logo PNG & PDF tanpa kendala.
+   - **Hard Refresh**: Buka `https://sdmis.sch.id/gaji/laporan` dan `https://sdmis.sch.id/gaji/export_bank`, tekan **`Ctrl + Shift + R`**, lalu uji unduh 1 slip PDF dan 1 file Excel CMS BRI.
+
 
 
 

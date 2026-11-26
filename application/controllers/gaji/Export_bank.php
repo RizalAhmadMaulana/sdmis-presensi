@@ -4,10 +4,10 @@ defined('BASEPATH') or exit('No direct script access allowed');
 /**
  * Controller Export_bank
  * Modul Penggajian SD Mentari Islamic School (SDMIS)
- * Generator File Mutasi Payroll Perbankan:
- * 1. CMS BRI (CSV) sesuai template resmi Bank BRI Corporate Internet Banking
- * 2. CMS BSI (CSV / Excel) untuk penerima rekening Bank Syariah Indonesia
- * 3. Master Rekapitulasi Payroll Yayasan (CSV Spreadsheet)
+ * Generator File Mutasi Payroll Perbankan Resmi (Excel .xlsx Rapi Ber-border & Anti Scientific-Notation + Opsi CSV):
+ * 1. CMS BRI (Excel .xlsx persis gaya Payroll November 2026 / CSV Mentah)
+ * 2. CMS BSI (Excel .xlsx / CSV)
+ * 3. Master Rekapitulasi Payroll Yayasan 26 Kolom (Excel .xlsx / CSV)
  */
 class Export_bank extends CI_Controller {
 
@@ -16,6 +16,7 @@ class Export_bank extends CI_Controller {
         is_logged_in();
         $this->load->model('payroll_model', 'payroll');
         $this->load->model('user/menu_model', 'menu');
+        $this->load->library('simple_xlsx');
     }
 
     /**
@@ -58,8 +59,7 @@ class Export_bank extends CI_Controller {
     }
 
     /**
-     * 1-Click Download File Mutasi CMS Bank BRI (CSV)
-     * Format sesuai Standar Bank BRI Corporate Internet Banking (CMS Payroll)
+     * Download File Mutasi CMS Bank BRI (Default: Excel .xlsx rapi sesuai template Payroll November; opsi ?format=csv)
      */
     public function bri($periode_id = null) {
         cek_menu_access();
@@ -78,80 +78,128 @@ class Export_bank extends CI_Controller {
 
         $periode = $recon['periode'];
         $setting = $recon['setting_global'];
-        $debit_account = !empty($setting['rekening_debit_yayasan']) ? $setting['rekening_debit_yayasan'] : '219701000399305';
-
-        // Filter daftar penerima (semua yang ditransfer via BRI atau gabungan payroll)
+        $debit_account = !empty($setting['rekening_debit_yayasan']) ? preg_replace('/[^0-9]/', '', $setting['rekening_debit_yayasan']) : '219701000399305';
         $list = $recon['rincian'];
 
         $count = count($list);
         $total_amount = 0;
-
         foreach ($list as $r) {
             $total_amount += (int)round((float)$r['take_home_pay']);
         }
 
-        $check_val = $count . $total_amount;
-        $value_date = date('dmY'); // e.g. 10112026 atau tanggal hari ini DDMMYYYY
+        $check_val = (string)$count . (string)$total_amount;
+        $value_date = date('dmY');
+        $format = strtolower((string)$this->input->get('format'));
 
-        // Nama file download
-        $filename = 'PAYROLL_CMS_BRI_SDMIS_' . str_pad($periode['bulan'], 2, '0', STR_PAD_LEFT) . '_' . $periode['tahun'] . '.csv';
+        $bulan_tag = str_pad($periode['bulan'], 2, '0', STR_PAD_LEFT);
+        $base_name = 'Payroll_CMS_BRI_SDMIS_' . $bulan_tag . '_' . $periode['tahun'];
 
-        header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename="' . $filename . '"');
-        header('Pragma: no-cache');
-        header('Expires: 0');
+        // Opsi fallback CSV mentah jika admin membutuhkan upload TXT/CSV langsung ke portal BRI
+        if ($format === 'csv') {
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="' . $base_name . '.csv"');
+            header('Pragma: no-cache');
+            header('Expires: 0');
 
-        $out = fopen('php://output', 'w');
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['NO', 'NAMA', 'ACCOUNT', 'AMOUNT', 'Email', 'CUSTOMERREFF', 'BENEFICIARY BANK', 'BENEFICIARY ADDRESS']);
 
-        // 1. Header CSV BRI CMS
-        fputcsv($out, [
-            'NO',
-            'NAMA',
-            'ACCOUNT',
-            'AMOUNT',
-            'Email',
-            'CUSTOMERREFF',
-            'BENEFICIARY BANK',
-            'BENEFICIARY ADDRESS'
-        ]);
+            $no = 1;
+            foreach ($list as $r) {
+                $amt = (int)round((float)$r['take_home_pay']);
+                $acc = preg_replace('/[^0-9]/', '', (string)$r['nomor_rekening']);
+                $bank_code = (strtoupper(trim($r['nama_bank'] ?? '')) === 'BSI') ? 'BSMDIDJA' : '';
+                $reff = !empty($r['customer_reff']) ? $r['customer_reff'] : ('MT' . strtoupper(substr(date('M', mktime(0, 0, 0, $periode['bulan'], 1)), 0, 4)) . sprintf('%03d', $no));
+                $email = !empty($r['email']) ? $r['email'] : 'keuangan@sdmis.sch.id';
 
-        // 2. Baris Data Guru
+                fputcsv($out, [
+                    $no++,
+                    strtoupper($r['nama_pemilik_rekening'] ? $r['nama_pemilik_rekening'] : $r['nama_pegawai']),
+                    $acc,
+                    $amt,
+                    $email,
+                    $reff,
+                    $bank_code,
+                    ''
+                ]);
+            }
+
+            fputcsv($out, ['COUNT', '', '', $count, '', '', '', '']);
+            fputcsv($out, ['TOTAL', '', '', $total_amount, '', '', '', '']);
+            fputcsv($out, ['CHECK', '', '', $check_val, '', '', '', '']);
+            fputcsv($out, ['VALUEDATE (DDMMYYYY)', '', '', $value_date, '', '', '', '']);
+            fputcsv($out, ['DEBITACCOUNT', '', '', $debit_account, '', '', '', '']);
+            fclose($out);
+            exit();
+        }
+
+        // Default: Generate Excel (.xlsx) rapi dengan border penuh, lebar kolom pas, & nomor rekening format teks '@'
+        $columns = [
+            ['title' => 'NO',                  'type' => 'int',      'align' => 'center', 'min_width' => 6],
+            ['title' => 'NAMA',                'type' => 'text',     'align' => 'left',   'min_width' => 24],
+            ['title' => 'ACCOUNT',             'type' => 'text',     'align' => 'left',   'min_width' => 20],
+            ['title' => 'AMOUNT',              'type' => 'currency', 'align' => 'right',  'min_width' => 14],
+            ['title' => 'Email',               'type' => 'text',     'align' => 'left',   'min_width' => 28],
+            ['title' => 'CUSTOMERREFF',        'type' => 'text',     'align' => 'center', 'min_width' => 15],
+            ['title' => 'BENEFICIARY BANK',    'type' => 'text',     'align' => 'center', 'min_width' => 18],
+            ['title' => 'BENEFICIARY ADDRESS', 'type' => 'text',     'align' => 'left',   'min_width' => 22],
+        ];
+
+        $rows = [];
         $no = 1;
         foreach ($list as $r) {
             $amt = (int)round((float)$r['take_home_pay']);
-            $acc = preg_replace('/[^0-9]/', '', $r['nomor_rekening']);
+            $acc = preg_replace('/[^0-9]/', '', (string)$r['nomor_rekening']);
             $bank_code = (strtoupper(trim($r['nama_bank'] ?? '')) === 'BSI') ? 'BSMDIDJA' : '';
-            $reff = !empty($r['customer_reff']) ? $r['customer_reff'] : ('MT' . strtoupper(substr(date('M', mktime(0,0,0,$periode['bulan'],1)), 0, 4)) . sprintf('%03d', $no));
+            $reff = !empty($r['customer_reff']) ? $r['customer_reff'] : ('MT' . strtoupper(substr(date('M', mktime(0, 0, 0, $periode['bulan'], 1)), 0, 4)) . sprintf('%03d', $no));
+            $email = !empty($r['email']) ? trim((string)$r['email']) : 'keuangan@sdmis.sch.id';
+            $nama_pemilik = strtoupper(trim((string)($r['nama_pemilik_rekening'] ? $r['nama_pemilik_rekening'] : $r['nama_pegawai'])));
 
-            // Ambil email dari tabel m_pegawai atau default
-            $email = !empty($r['email']) ? $r['email'] : 'keuangan@sdmis.sch.id';
-
-            fputcsv($out, [
+            $rows[] = [
                 $no++,
-                strtoupper($r['nama_pemilik_rekening'] ? $r['nama_pemilik_rekening'] : $r['nama_pegawai']),
+                $nama_pemilik,
                 $acc,
                 $amt,
                 $email,
                 $reff,
                 $bank_code,
                 ''
-            ]);
+            ];
         }
 
-        // 3. Trailer / Footer Baris Kontrol Integritas BRI CMS
-        fputcsv($out, ['COUNT', '', '', $count, '', '', '', '']);
-        fputcsv($out, ['TOTAL', '', '', $total_amount, '', '', '', '']);
-        fputcsv($out, ['CHECK', '', '', $check_val, '', '', '', '']);
-        fputcsv($out, ['VALUEDATE (DDMMYYYY)', '', '', $value_date, '', '', '', '']);
-        fputcsv($out, ['DEBITACCOUNT', '', '', $debit_account, '', '', '', '']);
+        $footer_rows = [
+            [
+                'cells'  => ['COUNT', '', '', $count, '', '', '', ''],
+                'types'  => [0 => 'label', 3 => 'int'],
+                'merges' => [[0, 2]]
+            ],
+            [
+                'cells'  => ['TOTAL', '', '', $total_amount, '', '', '', ''],
+                'types'  => [0 => 'label', 3 => 'currency'],
+                'merges' => [[0, 2]]
+            ],
+            [
+                'cells'  => ['CHECK', '', '', $check_val, '', '', '', ''],
+                'types'  => [0 => 'label', 3 => 'text_right'],
+                'merges' => [[0, 2]]
+            ],
+            [
+                'cells'  => ['VALUEDATE (DDMMYYYY)', '', '', $value_date, '', '', '', ''],
+                'types'  => [0 => 'label', 3 => 'text_right'],
+                'merges' => [[0, 2]]
+            ],
+            [
+                'cells'  => ['DEBITACCOUNT', '', '', $debit_account, '', '', '', ''],
+                'types'  => [0 => 'label', 3 => 'text_right'],
+                'merges' => [[0, 2]]
+            ],
+        ];
 
-        fclose($out);
-        exit();
+        $this->simple_xlsx->download($base_name . '.xlsx', $columns, $rows, $footer_rows, 'CMS BRI');
     }
 
     /**
-     * 1-Click Download File Mutasi CMS Bank BSI (CSV)
-     * Format khusus penerima rekening Bank BSI (Kliring / Clearing Transfer)
+     * Download File Mutasi CMS Bank BSI (Default: Excel .xlsx; opsi ?format=csv)
      */
     public function bsi($periode_id = null) {
         cek_menu_access();
@@ -170,55 +218,86 @@ class Export_bank extends CI_Controller {
 
         $periode = $recon['periode'];
         $bsi_items = $recon['bank_summary']['BSI']['items'];
+        $format = strtolower((string)$this->input->get('format'));
 
-        $filename = 'PAYROLL_CMS_BSI_SDMIS_' . str_pad($periode['bulan'], 2, '0', STR_PAD_LEFT) . '_' . $periode['tahun'] . '.csv';
+        $bulan_tag = str_pad($periode['bulan'], 2, '0', STR_PAD_LEFT);
+        $base_name = 'Payroll_CMS_BSI_SDMIS_' . $bulan_tag . '_' . $periode['tahun'];
 
-        header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename="' . $filename . '"');
-        header('Pragma: no-cache');
-        header('Expires: 0');
+        if ($format === 'csv') {
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="' . $base_name . '.csv"');
+            header('Pragma: no-cache');
+            header('Expires: 0');
 
-        $out = fopen('php://output', 'w');
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['NO', 'BENEFICIARY_NAME', 'BENEFICIARY_ACCOUNT', 'AMOUNT', 'BANK_NAME', 'CUSTOMER_REFF', 'REMARKS']);
 
-        // Header BSI CMS
-        fputcsv($out, [
-            'NO',
-            'BENEFICIARY_NAME',
-            'BENEFICIARY_ACCOUNT',
-            'AMOUNT',
-            'BANK_NAME',
-            'CUSTOMER_REFF',
-            'REMARKS'
-        ]);
+            $no = 1;
+            $total_bsi = 0;
+            foreach ($bsi_items as $r) {
+                $amt = (int)round((float)$r['take_home_pay']);
+                $total_bsi += $amt;
+                $acc = preg_replace('/[^0-9]/', '', (string)$r['nomor_rekening']);
+                $reff = !empty($r['customer_reff']) ? $r['customer_reff'] : ('BSI' . sprintf('%03d', $no));
 
+                fputcsv($out, [
+                    $no++,
+                    strtoupper($r['nama_pemilik_rekening'] ? $r['nama_pemilik_rekening'] : $r['nama_pegawai']),
+                    $acc,
+                    $amt,
+                    'BANK SYARIAH INDONESIA (BSI)',
+                    $reff,
+                    'MUKAFAAH SDMIS ' . strtoupper($periode['nama_periode'])
+                ]);
+            }
+
+            fputcsv($out, ['TOTAL BSI', count($bsi_items) . ' REKENING', '', $total_bsi, '', '', '']);
+            fclose($out);
+            exit();
+        }
+
+        $columns = [
+            ['title' => 'NO',                  'type' => 'int',      'align' => 'center', 'min_width' => 6],
+            ['title' => 'BENEFICIARY_NAME',    'type' => 'text',     'align' => 'left',   'min_width' => 24],
+            ['title' => 'BENEFICIARY_ACCOUNT', 'type' => 'text',     'align' => 'left',   'min_width' => 20],
+            ['title' => 'AMOUNT',              'type' => 'currency', 'align' => 'right',  'min_width' => 14],
+            ['title' => 'BANK_NAME',           'type' => 'text',     'align' => 'center', 'min_width' => 28],
+            ['title' => 'CUSTOMER_REFF',       'type' => 'text',     'align' => 'center', 'min_width' => 15],
+            ['title' => 'REMARKS',             'type' => 'text',     'align' => 'left',   'min_width' => 28],
+        ];
+
+        $rows = [];
         $no = 1;
         $total_bsi = 0;
         foreach ($bsi_items as $r) {
             $amt = (int)round((float)$r['take_home_pay']);
             $total_bsi += $amt;
-            $acc = preg_replace('/[^0-9]/', '', $r['nomor_rekening']);
+            $acc = preg_replace('/[^0-9]/', '', (string)$r['nomor_rekening']);
             $reff = !empty($r['customer_reff']) ? $r['customer_reff'] : ('BSI' . sprintf('%03d', $no));
 
-            fputcsv($out, [
+            $rows[] = [
                 $no++,
-                strtoupper($r['nama_pemilik_rekening'] ? $r['nama_pemilik_rekening'] : $r['nama_pegawai']),
+                strtoupper(trim((string)($r['nama_pemilik_rekening'] ? $r['nama_pemilik_rekening'] : $r['nama_pegawai']))),
                 $acc,
                 $amt,
                 'BANK SYARIAH INDONESIA (BSI)',
                 $reff,
                 'MUKAFAAH SDMIS ' . strtoupper($periode['nama_periode'])
-            ]);
+            ];
         }
 
-        // Summary row
-        fputcsv($out, ['TOTAL BSI', count($bsi_items) . ' REKENING', '', $total_bsi, '', '', '']);
+        $footer_rows = [
+            [
+                'cells' => ['TOTAL BSI', count($bsi_items) . ' REKENING', '', $total_bsi, '', '', ''],
+                'types' => [0 => 'label', 1 => 'label', 3 => 'currency']
+            ]
+        ];
 
-        fclose($out);
-        exit();
+        $this->simple_xlsx->download($base_name . '.xlsx', $columns, $rows, $footer_rows, 'CMS BSI');
     }
 
     /**
-     * Download Master Rekapitulasi Spreadsheet Lengkap (CSV / Excel Compatible)
+     * Download Master Rekapitulasi Spreadsheet Lengkap (Default: Excel .xlsx rapi ber-border; opsi ?format=csv)
      */
     public function master_csv($periode_id = null) {
         cek_menu_access();
@@ -235,78 +314,171 @@ class Export_bank extends CI_Controller {
         }
 
         $periode = $recon['periode'];
-        $filename = 'MASTER_PAYROLL_SDMIS_' . str_pad($periode['bulan'], 2, '0', STR_PAD_LEFT) . '_' . $periode['tahun'] . '.csv';
+        $format = strtolower((string)$this->input->get('format'));
+        $bulan_tag = str_pad($periode['bulan'], 2, '0', STR_PAD_LEFT);
+        $base_name = 'Master_Payroll_SDMIS_' . $bulan_tag . '_' . $periode['tahun'];
 
-        header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename="' . $filename . '"');
-        header('Pragma: no-cache');
-        header('Expires: 0');
+        $headers = [
+            'NO', 'NIP_PEGAWAI', 'NAMA_PEGAWAI', 'STATUS_KEPEGAWAIAN', 'MASA_KERJA_TAHUN',
+            'GAJI_POKOK', 'TUNJ_MASA_KERJA', 'TUNJ_WALI_KELAS', 'TUNJ_STRUKTURAL', 'HARI_HADIR',
+            'TUNJ_MAKAN', 'BONUS_TIER1', 'BONUS_TIER2', 'TOTAL_BONUS_PRESENSI', 'HONOR_EKSTRA_LUNAS',
+            'TALANGAN_OPERASIONAL', 'TUNJ_TRANSPORT', 'TUNJ_KESETARAAN', 'APRESIASI_KHUSUS',
+            'TOTAL_PENGHASILAN_KOTOR', 'POTONGAN_KASBON', 'TOTAL_POTONGAN', 'TAKE_HOME_PAY',
+            'NAMA_BANK', 'NOMOR_REKENING', 'NAMA_PEMILIK_REKENING', 'CUSTOMER_REFF'
+        ];
 
-        $out = fopen('php://output', 'w');
+        if ($format === 'csv') {
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="' . $base_name . '.csv"');
+            header('Pragma: no-cache');
+            header('Expires: 0');
 
-        // Header Master
-        fputcsv($out, [
-            'NO',
-            'NIP_PEGAWAI',
-            'NAMA_PEGAWAI',
-            'STATUS_KEPEGAWAIAN',
-            'MASA_KERJA_TAHUN',
-            'GAJI_POKOK',
-            'TUNJ_MASA_KERJA',
-            'TUNJ_WALI_KELAS',
-            'TUNJ_STRUKTURAL',
-            'HARI_HADIR',
-            'TUNJ_MAKAN',
-            'BONUS_TIER1',
-            'BONUS_TIER2',
-            'TOTAL_BONUS_PRESENSI',
-            'HONOR_EKSTRA_LUNAS',
-            'TALANGAN_OPERASIONAL',
-            'TUNJ_TRANSPORT',
-            'TUNJ_KESETARAAN',
-            'TOTAL_PENGHASILAN_KOTOR',
-            'POTONGAN_KASBON',
-            'TOTAL_POTONGAN',
-            'TAKE_HOME_PAY',
-            'NAMA_BANK',
-            'NOMOR_REKENING',
-            'NAMA_PEMILIK_REKENING',
-            'CUSTOMER_REFF'
-        ]);
+            $out = fopen('php://output', 'w');
+            fputcsv($out, $headers);
 
-        $no = 1;
-        foreach ($recon['rincian'] as $r) {
-            fputcsv($out, [
-                $no++,
-                $r['id_pegawai'],
-                $r['nama_pegawai'],
-                strtoupper($r['status_kepegawaian']),
-                $r['masa_kerja_tahun'],
-                $r['gaji_pokok'],
-                $r['tunj_masa_kerja'],
-                $r['tunj_wali_kelas'],
-                $r['tunj_struktural'],
-                $r['hari_hadir_presensi'],
-                $r['tunj_makan'],
-                $r['bonus_presensi_tier1'],
-                $r['bonus_presensi_tier2'],
-                $r['total_tunj_presensi'],
-                $r['honor_ekstra_lunas'],
-                $r['talangan_operasional'],
-                $r['tunj_transport'],
-                $r['tunj_kesetaraan'],
-                $r['total_penghasilan_kotor'],
-                $r['potongan_kasbon'],
-                $r['total_potongan'],
-                $r['take_home_pay'],
-                $r['nama_bank'],
-                $r['nomor_rekening'],
-                $r['nama_pemilik_rekening'] ? $r['nama_pemilik_rekening'] : $r['nama_pegawai'],
-                $r['customer_reff']
-            ]);
+            $no = 1;
+            foreach ($recon['rincian'] as $r) {
+                fputcsv($out, [
+                    $no++,
+                    $r['id_pegawai'],
+                    $r['nama_pegawai'],
+                    strtoupper($r['status_kepegawaian']),
+                    $r['masa_kerja_tahun'],
+                    $r['gaji_pokok'],
+                    $r['tunj_masa_kerja'],
+                    $r['tunj_wali_kelas'],
+                    $r['tunj_struktural'],
+                    $r['hari_hadir_presensi'],
+                    $r['tunj_makan'],
+                    $r['bonus_presensi_tier1'],
+                    $r['bonus_presensi_tier2'],
+                    $r['total_tunj_presensi'],
+                    $r['honor_ekstra_lunas'],
+                    $r['talangan_operasional'],
+                    $r['tunj_transport'],
+                    $r['tunj_kesetaraan'],
+                    $r['apresiasi_sertifikasi'],
+                    $r['total_penghasilan_kotor'],
+                    $r['potongan_kasbon'],
+                    $r['total_potongan'],
+                    $r['take_home_pay'],
+                    $r['nama_bank'],
+                    $r['nomor_rekening'],
+                    $r['nama_pemilik_rekening'] ? $r['nama_pemilik_rekening'] : $r['nama_pegawai'],
+                    $r['customer_reff']
+                ]);
+            }
+
+            fclose($out);
+            exit();
         }
 
-        fclose($out);
-        exit();
+        $columns = [
+            ['title' => 'NO',                      'type' => 'int',      'align' => 'center', 'min_width' => 6],
+            ['title' => 'NIP_PEGAWAI',             'type' => 'text',     'align' => 'center', 'min_width' => 15],
+            ['title' => 'NAMA_PEGAWAI',            'type' => 'text',     'align' => 'left',   'min_width' => 24],
+            ['title' => 'STATUS_KEPEGAWAIAN',      'type' => 'text',     'align' => 'center', 'min_width' => 14],
+            ['title' => 'MASA_KERJA_TAHUN',        'type' => 'int',      'align' => 'center', 'min_width' => 10],
+            ['title' => 'GAJI_POKOK',              'type' => 'currency', 'align' => 'right',  'min_width' => 13],
+            ['title' => 'TUNJ_MASA_KERJA',         'type' => 'currency', 'align' => 'right',  'min_width' => 13],
+            ['title' => 'TUNJ_WALI_KELAS',         'type' => 'currency', 'align' => 'right',  'min_width' => 13],
+            ['title' => 'TUNJ_STRUKTURAL',         'type' => 'currency', 'align' => 'right',  'min_width' => 13],
+            ['title' => 'HARI_HADIR',              'type' => 'int',      'align' => 'center', 'min_width' => 10],
+            ['title' => 'TUNJ_MAKAN',              'type' => 'currency', 'align' => 'right',  'min_width' => 12],
+            ['title' => 'BONUS_TIER1',             'type' => 'currency', 'align' => 'right',  'min_width' => 12],
+            ['title' => 'BONUS_TIER2',             'type' => 'currency', 'align' => 'right',  'min_width' => 12],
+            ['title' => 'TOTAL_BONUS_PRESENSI',    'type' => 'currency', 'align' => 'right',  'min_width' => 14],
+            ['title' => 'HONOR_EKSTRA_LUNAS',      'type' => 'currency', 'align' => 'right',  'min_width' => 14],
+            ['title' => 'TALANGAN_OPERASIONAL',    'type' => 'currency', 'align' => 'right',  'min_width' => 14],
+            ['title' => 'TUNJ_TRANSPORT',          'type' => 'currency', 'align' => 'right',  'min_width' => 13],
+            ['title' => 'TUNJ_KESETARAAN',         'type' => 'currency', 'align' => 'right',  'min_width' => 13],
+            ['title' => 'APRESIASI_KHUSUS',        'type' => 'currency', 'align' => 'right',  'min_width' => 13],
+            ['title' => 'TOTAL_PENGHASILAN_KOTOR', 'type' => 'currency', 'align' => 'right',  'min_width' => 16],
+            ['title' => 'POTONGAN_KASBON',         'type' => 'currency', 'align' => 'right',  'min_width' => 13],
+            ['title' => 'TOTAL_POTONGAN',          'type' => 'currency', 'align' => 'right',  'min_width' => 13],
+            ['title' => 'TAKE_HOME_PAY',           'type' => 'currency', 'align' => 'right',  'min_width' => 15],
+            ['title' => 'NAMA_BANK',               'type' => 'text',     'align' => 'center', 'min_width' => 10],
+            ['title' => 'NOMOR_REKENING',          'type' => 'text',     'align' => 'left',   'min_width' => 20],
+            ['title' => 'NAMA_PEMILIK_REKENING',   'type' => 'text',     'align' => 'left',   'min_width' => 24],
+            ['title' => 'CUSTOMER_REFF',           'type' => 'text',     'align' => 'center', 'min_width' => 14],
+        ];
+
+        $rows = [];
+        $no = 1;
+        foreach ($recon['rincian'] as $r) {
+            $rows[] = [
+                $no++,
+                (string)$r['id_pegawai'],
+                (string)$r['nama_pegawai'],
+                strtoupper((string)$r['status_kepegawaian']),
+                (int)$r['masa_kerja_tahun'],
+                (int)round((float)$r['gaji_pokok']),
+                (int)round((float)$r['tunj_masa_kerja']),
+                (int)round((float)$r['tunj_wali_kelas']),
+                (int)round((float)$r['tunj_struktural']),
+                (int)$r['hari_hadir_presensi'],
+                (int)round((float)$r['tunj_makan']),
+                (int)round((float)$r['bonus_presensi_tier1']),
+                (int)round((float)$r['bonus_presensi_tier2']),
+                (int)round((float)$r['total_tunj_presensi']),
+                (int)round((float)$r['honor_ekstra_lunas']),
+                (int)round((float)$r['talangan_operasional']),
+                (int)round((float)$r['tunj_transport']),
+                (int)round((float)$r['tunj_kesetaraan']),
+                (int)round((float)$r['apresiasi_sertifikasi']),
+                (int)round((float)$r['total_penghasilan_kotor']),
+                (int)round((float)$r['potongan_kasbon']),
+                (int)round((float)$r['total_potongan']),
+                (int)round((float)$r['take_home_pay']),
+                (string)$r['nama_bank'],
+                preg_replace('/[^0-9]/', '', (string)$r['nomor_rekening']),
+                (string)($r['nama_pemilik_rekening'] ? $r['nama_pemilik_rekening'] : $r['nama_pegawai']),
+                (string)$r['customer_reff']
+            ];
+        }
+
+        $tot = $recon['totals'];
+        $footer_rows = [
+            [
+                'cells' => [
+                    'GRAND TOTAL', '', count($recon['rincian']) . ' Pegawai', '', '',
+                    (int)round($tot['gaji_pokok']),
+                    (int)round($tot['tunj_masa_kerja']),
+                    (int)round($tot['tunj_wali_kelas']),
+                    (int)round($tot['tunj_struktural']),
+                    '',
+                    (int)round($tot['tunj_makan']),
+                    (int)round($tot['bonus_presensi_tier1']),
+                    (int)round($tot['bonus_presensi_tier2']),
+                    (int)round($tot['total_tunj_presensi']),
+                    (int)round($tot['honor_ekstra_lunas']),
+                    (int)round($tot['talangan_operasional']),
+                    (int)round($tot['tunj_transport']),
+                    (int)round($tot['tunj_kesetaraan']),
+                    (int)round($tot['apresiasi_sertifikasi']),
+                    (int)round($tot['total_penghasilan_kotor']),
+                    (int)round($tot['potongan_kasbon']),
+                    (int)round($tot['total_potongan']),
+                    (int)round($tot['take_home_pay']),
+                    '', '', '', ''
+                ],
+                'types' => [
+                    0 => 'label', 2 => 'label',
+                    5 => 'currency', 6 => 'currency', 7 => 'currency', 8 => 'currency',
+                    10 => 'currency', 11 => 'currency', 12 => 'currency', 13 => 'currency',
+                    14 => 'currency', 15 => 'currency', 16 => 'currency', 17 => 'currency',
+                    18 => 'currency', 19 => 'currency', 20 => 'currency', 21 => 'currency', 22 => 'currency'
+                ]
+            ]
+        ];
+
+        $this->simple_xlsx->download($base_name . '.xlsx', $columns, $rows, $footer_rows, 'Master Payroll');
+    }
+
+    /**
+     * Alias method ke master_csv untuk kompatibilitas URL master_excel
+     */
+    public function master_excel($periode_id = null) {
+        $this->master_csv($periode_id);
     }
 }

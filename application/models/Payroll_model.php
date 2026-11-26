@@ -312,16 +312,24 @@ class Payroll_model extends CI_Model {
     // =========================================================================
 
     /**
-     * Menghitung honor ekstra yang berhak diterima guru pengampu:
-     * - Siswa LUNAS di awal bulan: Honor langsung masuk ke bulan berjalan.
-     * - Siswa BELUM LUNAS: Honor ditangguhkan (pending/carry-over) dan dicairkan saat sudah lunas.
-     * 
+     * Menghitung honor ekstra yang berhak diterima guru pengampu (Arsitektur 2-Tab):
+     * - Tipe 'per_anak':
+     *     (Jumlah Siswa Lunas Blok A di tx_ekstra_rekap × tarif)
+     *     + Pelunasan Tunggakan / Carry-Over Blok B (tx_ekstra_siswa berstatus 'lunas' yg dicairkan pada periode ini)
+     * - Tipe 'per_sesi' & 'per_kedatangan':
+     *     Akumulasi baris disetujui pada tx_ekstra_sesi untuk bulan & tahun berjalan.
+     *
      * @param int $pegawai_id
      * @param int $bulan
      * @param int $tahun
      * @return array
      */
     public function hitung_honor_ekstra_pegawai($pegawai_id, $bulan, $tahun) {
+        $this->ensure_ekstra_schema();
+
+        $bulan = (int)$bulan;
+        $tahun = (int)$tahun;
+
         // Ambil cabang ekstra yang diampu oleh pegawai ini
         $ekstras = $this->db->query("SELECT * FROM m_ekstra WHERE pegawai_id = ? AND is_active = 'y'", [$pegawai_id])->result_array();
 
@@ -332,47 +340,82 @@ class Payroll_model extends CI_Model {
         foreach ($ekstras as $ek) {
             $ekstra_id = (int)$ek['ekstra_id'];
             $tarif = (float)$ek['tarif_standar'];
+            $tipe = $ek['tipe_honor'];
 
-            // Berlaku untuk semua tipe honor: per_anak, per_sesi, maupun per_kedatangan
-            // Gunakan nominal_tagihan siswa/sesi jika > 0, fallback ke tarif_standar cabang ekstra
-            // 1. Siswa / Sesi Lunas Bulan Berjalan
-            $sql_lunas = "SELECT COUNT(*) as jml,
-                                 COALESCE(SUM(CASE WHEN nominal_tagihan > 0 THEN nominal_tagihan ELSE ? END), 0.00) as total_nom
-                          FROM tx_ekstra_siswa
-                          WHERE ekstra_id = ? AND bulan = ? AND tahun = ? AND status_bayar = 'lunas'";
-            $q_lunas = $this->db->query($sql_lunas, [$tarif, $ekstra_id, $bulan, $tahun])->row_array();
-            $jml_lunas = isset($q_lunas['jml']) ? (int)$q_lunas['jml'] : 0;
-            $sub_honor_lunas = isset($q_lunas['total_nom']) ? (float)$q_lunas['total_nom'] : 0.00;
+            if ($tipe === 'per_anak') {
+                // 1. Blok A: Input Cepat Rekap Anak Lunas Bulan Berjalan
+                $q_rekap = $this->db->query(
+                    "SELECT jumlah_lunas, tarif_satuan FROM tx_ekstra_rekap WHERE ekstra_id = ? AND bulan = ? AND tahun = ? LIMIT 1",
+                    [$ekstra_id, $bulan, $tahun]
+                )->row_array();
+                $jml_lunas = $q_rekap ? (int)$q_rekap['jumlah_lunas'] : 0;
+                $tarif_rekap = ($q_rekap && (float)$q_rekap['tarif_satuan'] > 0) ? (float)$q_rekap['tarif_satuan'] : $tarif;
+                $sub_honor_lunas = $jml_lunas * $tarif_rekap;
 
-            // 2. Siswa / Sesi Belum Lunas Bulan Berjalan (Pending)
-            $sql_pending = "SELECT COUNT(*) as jml,
-                                   COALESCE(SUM(CASE WHEN nominal_tagihan > 0 THEN nominal_tagihan ELSE ? END), 0.00) as total_nom
-                            FROM tx_ekstra_siswa
-                            WHERE ekstra_id = ? AND bulan = ? AND tahun = ? AND status_bayar = 'pending'";
-            $q_pending = $this->db->query($sql_pending, [$tarif, $ekstra_id, $bulan, $tahun])->row_array();
-            $jml_pending = isset($q_pending['jml']) ? (int)$q_pending['jml'] : 0;
-            $sub_honor_pending = isset($q_pending['total_nom']) ? (float)$q_pending['total_nom'] : 0.00;
+                // 2. Blok B: Daftar Tunggakan Masih Belum Lunas (Pending s/d periode ini)
+                $sql_pending = "SELECT COUNT(*) as jml,
+                                       COALESCE(SUM(CASE WHEN nominal_tagihan > 0 THEN nominal_tagihan ELSE ? END), 0.00) as total_nom
+                                FROM tx_ekstra_siswa
+                                WHERE ekstra_id = ?
+                                  AND status_bayar = 'pending'
+                                  AND (tahun < ? OR (tahun = ? AND bulan <= ?))";
+                $q_pending = $this->db->query($sql_pending, [$tarif, $ekstra_id, $tahun, $tahun, $bulan])->row_array();
+                $jml_pending = isset($q_pending['jml']) ? (int)$q_pending['jml'] : 0;
+                $sub_honor_pending = isset($q_pending['total_nom']) ? (float)$q_pending['total_nom'] : 0.00;
 
-            // 3. Carry-Over: Siswa bulan lalu yang baru lunas pada bulan ini
-            $sql_carry = "SELECT COUNT(*) as jml,
-                                 COALESCE(SUM(CASE WHEN nominal_tagihan > 0 THEN nominal_tagihan ELSE ? END), 0.00) as total_nom
-                          FROM tx_ekstra_siswa
-                          WHERE ekstra_id = ?
-                            AND ((tahun = ? AND bulan < ?) OR tahun < ?)
-                            AND status_bayar = 'lunas'
-                            AND MONTH(tanggal_bayar) = ? AND YEAR(tanggal_bayar) = ?";
-            $q_carry = $this->db->query($sql_carry, [$tarif, $ekstra_id, $tahun, $bulan, $tahun, $bulan, $tahun])->row_array();
-            $jml_carry = isset($q_carry['jml']) ? (int)$q_carry['jml'] : 0;
-            $sub_honor_carry = isset($q_carry['total_nom']) ? (float)$q_carry['total_nom'] : 0.00;
+                // 3. Blok B: Pelunasan Tunggakan / Carry-Over yang Dicairkan pada Periode Ini
+                $sql_carry = "SELECT COUNT(*) as jml,
+                                     COALESCE(SUM(CASE WHEN nominal_tagihan > 0 THEN nominal_tagihan ELSE ? END), 0.00) as total_nom
+                              FROM tx_ekstra_siswa
+                              WHERE ekstra_id = ?
+                                AND status_bayar = 'lunas'
+                                AND (
+                                      (bulan_cair = ? AND tahun_cair = ?)
+                                      OR (
+                                          bulan_cair IS NULL
+                                          AND (
+                                                (bulan = ? AND tahun = ?)
+                                                OR (((tahun = ? AND bulan < ?) OR tahun < ?) AND MONTH(tanggal_bayar) = ? AND YEAR(tanggal_bayar) = ?)
+                                          )
+                                      )
+                                )";
+                $q_carry = $this->db->query($sql_carry, [
+                    $tarif, $ekstra_id,
+                    $bulan, $tahun,
+                    $bulan, $tahun,
+                    $tahun, $bulan, $tahun, $bulan, $tahun
+                ])->row_array();
+                $jml_carry = isset($q_carry['jml']) ? (int)$q_carry['jml'] : 0;
+                $sub_honor_carry = isset($q_carry['total_nom']) ? (float)$q_carry['total_nom'] : 0.00;
 
-            $total_ekstra_cair = $sub_honor_lunas + $sub_honor_carry;
+                $total_ekstra_cair = $sub_honor_lunas + $sub_honor_carry;
+            } else {
+                // Tipe 'per_sesi' atau 'per_kedatangan' -> Sumber murni dari tx_ekstra_sesi
+                $sql_sesi_ok = "SELECT COALESCE(SUM(jumlah_sesi), 0) as jml,
+                                       COALESCE(SUM(CASE WHEN total_honor > 0 THEN total_honor ELSE jumlah_sesi * (CASE WHEN tarif_per_sesi > 0 THEN tarif_per_sesi ELSE ? END) END), 0.00) as total_nom
+                                FROM tx_ekstra_sesi
+                                WHERE ekstra_id = ? AND bulan = ? AND tahun = ? AND status = 'disetujui'";
+                $q_sesi_ok = $this->db->query($sql_sesi_ok, [$tarif, $ekstra_id, $bulan, $tahun])->row_array();
+
+                $sql_sesi_pend = "SELECT COALESCE(SUM(jumlah_sesi), 0) as jml,
+                                         COALESCE(SUM(CASE WHEN total_honor > 0 THEN total_honor ELSE jumlah_sesi * (CASE WHEN tarif_per_sesi > 0 THEN tarif_per_sesi ELSE ? END) END), 0.00) as total_nom
+                                  FROM tx_ekstra_sesi
+                                  WHERE ekstra_id = ? AND bulan = ? AND tahun = ? AND status = 'pending'";
+                $q_sesi_pend = $this->db->query($sql_sesi_pend, [$tarif, $ekstra_id, $bulan, $tahun])->row_array();
+
+                $jml_lunas = isset($q_sesi_ok['jml']) ? (int)$q_sesi_ok['jml'] : 0;
+                $jml_carry = 0;
+                $total_ekstra_cair = isset($q_sesi_ok['total_nom']) ? (float)$q_sesi_ok['total_nom'] : 0.00;
+                $jml_pending = isset($q_sesi_pend['jml']) ? (int)$q_sesi_pend['jml'] : 0;
+                $sub_honor_pending = isset($q_sesi_pend['total_nom']) ? (float)$q_sesi_pend['total_nom'] : 0.00;
+            }
 
             $total_honor_lunas += $total_ekstra_cair;
             $total_honor_pending += $sub_honor_pending;
 
             $detail_ekstra[] = [
                 'nama_ekstra'       => $ek['nama_ekstra'],
-                'tipe'              => $ek['tipe_honor'],
+                'tipe'              => $tipe,
                 'tarif'             => $tarif,
                 'jml_lunas'         => $jml_lunas,
                 'jml_pending'       => $jml_pending,
@@ -848,8 +891,63 @@ class Payroll_model extends CI_Model {
     }
 
     // =========================================================================
-    // 10. CRUD HELPER: EKSTRAKURIKULER & TRACKING PELUNASAN SISWA (TAHAP 5)
+    // 10. CRUD HELPER: EKSTRAKURIKULER 2-TAB (REKAP PER ANAK, TUNGGAKAN & SESI)
     // =========================================================================
+
+    /**
+     * Self-healing guard agar tabel & kolom ekstra 2-Tab selalu tersedia
+     * bahkan sebelum admin membuka halaman /migrate_payroll.
+     */
+    public function ensure_ekstra_schema() {
+        static $checked = false;
+        if ($checked) {
+            return true;
+        }
+
+        if ($this->db->query("SHOW TABLES LIKE 'tx_ekstra_rekap'")->num_rows() == 0) {
+            $this->db->query("CREATE TABLE IF NOT EXISTS `tx_ekstra_rekap` (
+                `rekap_id` INT(11) NOT NULL AUTO_INCREMENT,
+                `ekstra_id` INT(11) NOT NULL,
+                `bulan` TINYINT(2) NOT NULL,
+                `tahun` INT(4) NOT NULL,
+                `jumlah_lunas` INT(11) NOT NULL DEFAULT 0,
+                `tarif_satuan` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                `keterangan` VARCHAR(255) DEFAULT NULL,
+                `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (`rekap_id`),
+                UNIQUE KEY `idx_rekap_unik` (`ekstra_id`, `bulan`, `tahun`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+        }
+
+        if ($this->db->query("SHOW TABLES LIKE 'tx_ekstra_sesi'")->num_rows() == 0) {
+            $this->db->query("CREATE TABLE IF NOT EXISTS `tx_ekstra_sesi` (
+                `sesi_id` INT(11) NOT NULL AUTO_INCREMENT,
+                `ekstra_id` INT(11) NOT NULL,
+                `bulan` TINYINT(2) NOT NULL,
+                `tahun` INT(4) NOT NULL,
+                `tanggal_sesi` DATE DEFAULT NULL,
+                `jumlah_sesi` INT(11) NOT NULL DEFAULT 1,
+                `tarif_per_sesi` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                `total_honor` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                `keterangan` VARCHAR(255) DEFAULT NULL,
+                `status` ENUM('disetujui','pending') NOT NULL DEFAULT 'disetujui',
+                `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+                `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (`sesi_id`),
+                KEY `idx_sesi_periode` (`ekstra_id`, `bulan`, `tahun`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+        }
+
+        $col_cair = $this->db->query("SHOW COLUMNS FROM `tx_ekstra_siswa` LIKE 'bulan_cair'")->num_rows();
+        if ($col_cair == 0) {
+            $this->db->query("ALTER TABLE `tx_ekstra_siswa`
+                ADD COLUMN `bulan_cair` TINYINT(2) NULL DEFAULT NULL AFTER `tanggal_bayar`,
+                ADD COLUMN `tahun_cair` INT(4) NULL DEFAULT NULL AFTER `bulan_cair`");
+        }
+
+        $checked = true;
+        return true;
+    }
 
     /**
      * Mengambil seluruh cabang ekstrakurikuler beserta nama guru pengampu
@@ -868,6 +966,25 @@ class Payroll_model extends CI_Model {
     }
 
     /**
+     * Mengambil cabang ekstrakurikuler berdasarkan tipe honor tertentu
+     * @param array $tipe_list Contoh: ['per_anak'] atau ['per_sesi', 'per_kedatangan']
+     * @return array
+     */
+    public function get_ekstra_by_tipe($tipe_list = []) {
+        $this->_auto_link_guru_ekstra();
+
+        $this->db->select('a.*, b.nama_pegawai, b.id_pegawai as nip_pegawai, b.nomor_pegawai');
+        $this->db->from('m_ekstra a');
+        $this->db->join('m_pegawai b', 'a.pegawai_id = b.pegawai_id', 'left');
+        $this->db->where('a.is_active', 'y');
+        if (!empty($tipe_list)) {
+            $this->db->where_in('a.tipe_honor', $tipe_list);
+        }
+        $this->db->order_by('a.nama_ekstra', 'ASC');
+        return $this->db->get()->result_array();
+    }
+
+    /**
      * Memastikan guru pengampu ekstra terpetakan dengan tepat
      */
     private function _auto_link_guru_ekstra() {
@@ -876,7 +993,7 @@ class Payroll_model extends CI_Model {
         if ($q_anang) {
             $this->db->query("UPDATE m_ekstra SET pegawai_id = ? WHERE nama_ekstra LIKE '%Panahan%' AND (pegawai_id IS NULL OR pegawai_id = 0)", [$q_anang['pegawai_id']]);
         }
-        // Afkhan Rico -> Tahfidz
+        // Afkhan Rico -> Tahfidz (hanya jika belum dipetakan)
         $q_rico = $this->db->query("SELECT pegawai_id FROM m_pegawai WHERE (nama_pegawai LIKE '%Afkhan%' OR nama_pegawai LIKE '%Rico%') AND is_del = 'n' LIMIT 1")->row_array();
         if ($q_rico) {
             $this->db->query("UPDATE m_ekstra SET pegawai_id = ? WHERE nama_ekstra LIKE '%Tahfidz%' AND (pegawai_id IS NULL OR pegawai_id = 0)", [$q_rico['pegawai_id']]);
@@ -884,78 +1001,463 @@ class Payroll_model extends CI_Model {
     }
 
     /**
-     * Mengambil daftar siswa peserta ekstra dengan filter cabang, bulan, dan tahun
+     * Mengambil data rekap cepat Blok A Tab 1 (cabang tipe per_anak) beserta carry-over & pending Blok B
+     * @param int $bulan
+     * @param int $tahun
+     * @param int|null $ekstra_id
+     * @return array
+     */
+    public function get_rekap_ekstra_per_anak($bulan, $tahun, $ekstra_id = null) {
+        $this->ensure_ekstra_schema();
+
+        $bulan = (int)$bulan;
+        $tahun = (int)$tahun;
+
+        $cabangs = $this->get_ekstra_by_tipe(['per_anak']);
+        if (!empty($ekstra_id)) {
+            $cabangs = array_values(array_filter($cabangs, function ($c) use ($ekstra_id) {
+                return (int)$c['ekstra_id'] === (int)$ekstra_id;
+            }));
+        }
+
+        // 1. Rekap input cepat bulan berjalan (tx_ekstra_rekap)
+        $rekap_rows = $this->db->query("SELECT * FROM tx_ekstra_rekap WHERE bulan = ? AND tahun = ?", [$bulan, $tahun])->result_array();
+        $rekap_map = [];
+        foreach ($rekap_rows as $r) {
+            $rekap_map[(int)$r['ekstra_id']] = $r;
+        }
+
+        // 2. Pelunasan carry-over / blok B yang dicairkan ke periode ini
+        $sql_carry = "SELECT a.ekstra_id, a.nama_siswa, a.nominal_tagihan
+                      FROM tx_ekstra_siswa a
+                      JOIN m_ekstra b ON a.ekstra_id = b.ekstra_id
+                      WHERE b.tipe_honor = 'per_anak'
+                        AND a.status_bayar = 'lunas'
+                        AND (
+                              (a.bulan_cair = ? AND a.tahun_cair = ?)
+                              OR (
+                                  a.bulan_cair IS NULL
+                                  AND (
+                                        (a.bulan = ? AND a.tahun = ?)
+                                        OR (((a.tahun = ? AND a.bulan < ?) OR a.tahun < ?) AND MONTH(a.tanggal_bayar) = ? AND YEAR(a.tanggal_bayar) = ?)
+                                  )
+                              )
+                        )";
+        $carry_rows = $this->db->query($sql_carry, [
+            $bulan, $tahun,
+            $bulan, $tahun,
+            $tahun, $bulan, $tahun, $bulan, $tahun
+        ])->result_array();
+
+        $carry_map = [];
+        foreach ($carry_rows as $cr) {
+            $eid = (int)$cr['ekstra_id'];
+            if (!isset($carry_map[$eid])) {
+                $carry_map[$eid] = ['count' => 0, 'rows' => [], 'names' => []];
+            }
+            $carry_map[$eid]['count']++;
+            $carry_map[$eid]['rows'][] = (float)$cr['nominal_tagihan'];
+            $carry_map[$eid]['names'][] = $cr['nama_siswa'];
+        }
+
+        // 3. Piutang masih pending s/d periode ini
+        $sql_pend = "SELECT a.ekstra_id, a.nama_siswa, a.nominal_tagihan
+                     FROM tx_ekstra_siswa a
+                     JOIN m_ekstra b ON a.ekstra_id = b.ekstra_id
+                     WHERE b.tipe_honor = 'per_anak'
+                       AND a.status_bayar = 'pending'
+                       AND (a.tahun < ? OR (a.tahun = ? AND a.bulan <= ?))";
+        $pend_rows = $this->db->query($sql_pend, [$tahun, $tahun, $bulan])->result_array();
+        $pend_map = [];
+        foreach ($pend_rows as $pr) {
+            $eid = (int)$pr['ekstra_id'];
+            if (!isset($pend_map[$eid])) {
+                $pend_map[$eid] = ['count' => 0, 'rows' => []];
+            }
+            $pend_map[$eid]['count']++;
+            $pend_map[$eid]['rows'][] = (float)$pr['nominal_tagihan'];
+        }
+
+        $result = [];
+        foreach ($cabangs as $cab) {
+            $eid = (int)$cab['ekstra_id'];
+            $tarif_default = (float)$cab['tarif_standar'];
+            $rec = isset($rekap_map[$eid]) ? $rekap_map[$eid] : null;
+
+            $jml_lunas = $rec ? (int)$rec['jumlah_lunas'] : 0;
+            $tarif_satuan = ($rec && (float)$rec['tarif_satuan'] > 0) ? (float)$rec['tarif_satuan'] : $tarif_default;
+            $honor_rekap = $jml_lunas * $tarif_satuan;
+
+            $carry_count = isset($carry_map[$eid]) ? $carry_map[$eid]['count'] : 0;
+            $carry_nom = 0.00;
+            if (isset($carry_map[$eid])) {
+                foreach ($carry_map[$eid]['rows'] as $nom) {
+                    $carry_nom += ($nom > 0 ? $nom : $tarif_default);
+                }
+            }
+            $carry_names = isset($carry_map[$eid]) ? implode(', ', $carry_map[$eid]['names']) : '';
+
+            $pend_count = isset($pend_map[$eid]) ? $pend_map[$eid]['count'] : 0;
+            $pend_nom = 0.00;
+            if (isset($pend_map[$eid])) {
+                foreach ($pend_map[$eid]['rows'] as $nom) {
+                    $pend_nom += ($nom > 0 ? $nom : $tarif_default);
+                }
+            }
+
+            $result[] = [
+                'ekstra_id'          => $eid,
+                'nama_ekstra'        => $cab['nama_ekstra'],
+                'pegawai_id'         => $cab['pegawai_id'],
+                'nama_pegawai'       => $cab['nama_pegawai'],
+                'tarif_standar'      => $tarif_default,
+                'tarif_satuan'       => $tarif_satuan,
+                'jumlah_lunas'       => $jml_lunas,
+                'keterangan_rekap'   => $rec ? $rec['keterangan'] : '',
+                'updated_at'         => $rec ? $rec['updated_at'] : null,
+                'honor_rekap'        => $honor_rekap,
+                'carry_over_count'   => $carry_count,
+                'carry_over_nominal' => $carry_nom,
+                'carry_over_names'   => $carry_names,
+                'pending_count'      => $pend_count,
+                'pending_nominal'    => $pend_nom,
+                'total_honor_cair'   => $honor_rekap + $carry_nom
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Menyimpan batch input cepat jumlah siswa lunas (Blok A Tab 1)
+     * @param int $bulan
+     * @param int $tahun
+     * @param array $rekap_input Array [ekstra_id => ['jumlah_lunas' => int, 'keterangan' => string]]
+     * @return int Jumlah cabang yang diperbarui
+     */
+    public function save_rekap_ekstra_batch($bulan, $tahun, $rekap_input) {
+        $this->ensure_ekstra_schema();
+
+        $bulan = (int)$bulan;
+        $tahun = (int)$tahun;
+        $updated = 0;
+
+        if (!is_array($rekap_input)) {
+            return 0;
+        }
+
+        foreach ($rekap_input as $eid => $item) {
+            $eid = (int)$eid;
+            $ekstra = $this->get_ekstra_by_id($eid);
+            if (!$ekstra || $ekstra['tipe_honor'] !== 'per_anak') {
+                continue;
+            }
+
+            $jml = isset($item['jumlah_lunas']) ? max(0, (int)$item['jumlah_lunas']) : 0;
+            $ket = isset($item['keterangan']) ? trim($item['keterangan']) : '';
+            $tarif = (float)$ekstra['tarif_standar'];
+
+            $existing = $this->db->get_where('tx_ekstra_rekap', [
+                'ekstra_id' => $eid,
+                'bulan'     => $bulan,
+                'tahun'     => $tahun
+            ])->row_array();
+
+            if ($existing) {
+                $this->db->where('rekap_id', $existing['rekap_id'])->update('tx_ekstra_rekap', [
+                    'jumlah_lunas' => $jml,
+                    'tarif_satuan' => $tarif,
+                    'keterangan'   => $ket !== '' ? $ket : null
+                ]);
+            } else {
+                $this->db->insert('tx_ekstra_rekap', [
+                    'ekstra_id'    => $eid,
+                    'bulan'        => $bulan,
+                    'tahun'        => $tahun,
+                    'jumlah_lunas' => $jml,
+                    'tarif_satuan' => $tarif,
+                    'keterangan'   => $ket !== '' ? $ket : null
+                ]);
+            }
+            $updated++;
+        }
+
+        return $updated;
+    }
+
+    /**
+     * Mengambil daftar tunggakan siswa belum lunas & carry-over pelunasan Blok B Tab 1 (khusus cabang per_anak)
      * @param int|null $ekstra_id
      * @param int|null $bulan
      * @param int|null $tahun
-     * @param string|null $status_bayar
+     * @param string|null $status_bayar ('pending', 'lunas', atau null/all)
      * @return array
      */
-    public function get_siswa_ekstra($ekstra_id = null, $bulan = null, $tahun = null, $status_bayar = null) {
+    public function get_piutang_siswa_ekstra($ekstra_id = null, $bulan = null, $tahun = null, $status_bayar = null) {
+        $this->ensure_ekstra_schema();
+
+        $bulan = (int)($bulan ?: date('n'));
+        $tahun = (int)($tahun ?: date('Y'));
+
+        $params = [];
+        $sql = "SELECT a.*, b.nama_ekstra, b.tipe_honor, b.tarif_standar, c.nama_pegawai as nama_guru_pengampu
+                FROM tx_ekstra_siswa a
+                JOIN m_ekstra b ON a.ekstra_id = b.ekstra_id
+                LEFT JOIN m_pegawai c ON b.pegawai_id = c.pegawai_id
+                WHERE b.tipe_honor = 'per_anak'";
+
+        if (!empty($ekstra_id)) {
+            $sql .= " AND a.ekstra_id = ?";
+            $params[] = (int)$ekstra_id;
+        }
+
+        if ($status_bayar === 'pending') {
+            $sql .= " AND a.status_bayar = 'pending' AND (a.tahun < ? OR (a.tahun = ? AND a.bulan <= ?))";
+            array_push($params, $tahun, $tahun, $bulan);
+        } else if ($status_bayar === 'lunas') {
+            $sql .= " AND a.status_bayar = 'lunas' AND (
+                        (a.bulan_cair = ? AND a.tahun_cair = ?)
+                        OR (
+                            a.bulan_cair IS NULL
+                            AND (
+                                  (a.bulan = ? AND a.tahun = ?)
+                                  OR (((a.tahun = ? AND a.bulan < ?) OR a.tahun < ?) AND MONTH(a.tanggal_bayar) = ? AND YEAR(a.tanggal_bayar) = ?)
+                            )
+                        )
+                      )";
+            array_push($params, $bulan, $tahun, $bulan, $tahun, $tahun, $bulan, $tahun, $bulan, $tahun);
+        } else {
+            // Tampilkan semua siswa masih pending <= periode filter PLUS yang dicairkan di periode filter
+            $sql .= " AND (
+                        (a.status_bayar = 'pending' AND (a.tahun < ? OR (a.tahun = ? AND a.bulan <= ?)))
+                        OR (
+                            a.status_bayar = 'lunas'
+                            AND (
+                                  (a.bulan_cair = ? AND a.tahun_cair = ?)
+                                  OR (
+                                      a.bulan_cair IS NULL
+                                      AND (
+                                            (a.bulan = ? AND a.tahun = ?)
+                                            OR (((a.tahun = ? AND a.bulan < ?) OR a.tahun < ?) AND MONTH(a.tanggal_bayar) = ? AND YEAR(a.tanggal_bayar) = ?)
+                                      )
+                                  )
+                            )
+                        )
+                      )";
+            array_push($params, $tahun, $tahun, $bulan, $bulan, $tahun, $bulan, $tahun, $tahun, $bulan, $tahun, $bulan, $tahun);
+        }
+
+        $sql .= " ORDER BY CASE WHEN a.status_bayar = 'pending' THEN 0 ELSE 1 END ASC, a.tahun DESC, a.bulan DESC, a.nama_siswa ASC";
+        return $this->db->query($sql, $params)->result_array();
+    }
+
+    /**
+     * Mencairkan / melunasi piutang tunggakan siswa ke periode pencairan (Carry-Over)
+     */
+    public function lunasi_piutang_siswa($id, $bulan_cair, $tahun_cair, $tanggal_bayar = null) {
+        $this->ensure_ekstra_schema();
+
+        $row = $this->db->get_where('tx_ekstra_siswa', ['id' => (int)$id])->row_array();
+        if (!$row) {
+            return ['status' => false, 'message' => 'Data tunggakan siswa tidak ditemukan.'];
+        }
+
+        $tgl = !empty($tanggal_bayar) ? $tanggal_bayar : date('Y-m-d');
+        $this->db->where('id', (int)$id)->update('tx_ekstra_siswa', [
+            'status_bayar'  => 'lunas',
+            'tanggal_bayar' => $tgl,
+            'bulan_cair'    => (int)$bulan_cair,
+            'tahun_cair'    => (int)$tahun_cair
+        ]);
+
+        return [
+            'status'  => true,
+            'message' => 'Tunggakan ananda ' . $row['nama_siswa'] . ' dilunasi dan dicairkan ke Mukafaah ' . sprintf('%02d', $bulan_cair) . '/' . (int)$tahun_cair . '.'
+        ];
+    }
+
+    /**
+     * Mengembalikan status piutang menjadi BELUM LUNAS (Pending)
+     */
+    public function batalkan_lunas_piutang($id) {
+        $this->ensure_ekstra_schema();
+
+        $row = $this->db->get_where('tx_ekstra_siswa', ['id' => (int)$id])->row_array();
+        if (!$row) {
+            return ['status' => false, 'message' => 'Data siswa tidak ditemukan.'];
+        }
+
+        $this->db->where('id', (int)$id)->update('tx_ekstra_siswa', [
+            'status_bayar'  => 'pending',
+            'tanggal_bayar' => null,
+            'bulan_cair'    => null,
+            'tahun_cair'    => null
+        ]);
+
+        return [
+            'status'  => true,
+            'message' => 'Pelunasan ananda ' . $row['nama_siswa'] . ' dibatalkan (kembali ke daftar tunggakan).'
+        ];
+    }
+
+    /**
+     * Mengambil log multi-baris sesi & kedatangan guru (Tab 2)
+     */
+    public function get_sesi_ekstra($ekstra_id = null, $bulan = null, $tahun = null, $status = null) {
+        $this->ensure_ekstra_schema();
+
         $this->db->select('a.*, b.nama_ekstra, b.tipe_honor, b.tarif_standar, c.nama_pegawai as nama_guru_pengampu');
-        $this->db->from('tx_ekstra_siswa a');
+        $this->db->from('tx_ekstra_sesi a');
         $this->db->join('m_ekstra b', 'a.ekstra_id = b.ekstra_id');
         $this->db->join('m_pegawai c', 'b.pegawai_id = c.pegawai_id', 'left');
+        $this->db->where_in('b.tipe_honor', ['per_sesi', 'per_kedatangan']);
 
-        if ($ekstra_id) {
-            $this->db->where('a.ekstra_id', $ekstra_id);
+        if (!empty($ekstra_id)) {
+            $this->db->where('a.ekstra_id', (int)$ekstra_id);
         }
-        if ($bulan) {
-            $this->db->where('a.bulan', $bulan);
+        if (!empty($bulan)) {
+            $this->db->where('a.bulan', (int)$bulan);
         }
-        if ($tahun) {
-            $this->db->where('a.tahun', $tahun);
+        if (!empty($tahun)) {
+            $this->db->where('a.tahun', (int)$tahun);
         }
-        if ($status_bayar) {
-            $this->db->where('a.status_bayar', $status_bayar);
+        if (!empty($status)) {
+            $this->db->where('a.status', $status);
         }
 
-        $this->db->order_by('a.status_bayar', 'ASC'); // Pending dulu baru lunas
-        $this->db->order_by('a.nama_siswa', 'ASC');
+        $this->db->order_by('a.tanggal_sesi', 'DESC');
+        $this->db->order_by('a.sesi_id', 'DESC');
         return $this->db->get()->result_array();
     }
 
     /**
-     * Toggle status pembayaran siswa (lunas <-> pending)
-     * @param int $id
-     * @return array Status baru & status operasi
+     * Ringkasan per cabang/pengampu untuk kartu ringkasan Tab 2
      */
-    public function toggle_status_bayar_siswa($id) {
-        $row = $this->db->get_where('tx_ekstra_siswa', ['id' => $id])->row_array();
+    public function get_ringkasan_sesi_per_cabang($bulan, $tahun, $ekstra_id = null) {
+        $this->ensure_ekstra_schema();
+
+        $bulan = (int)$bulan;
+        $tahun = (int)$tahun;
+
+        $cabangs = $this->get_ekstra_by_tipe(['per_sesi', 'per_kedatangan']);
+        if (!empty($ekstra_id)) {
+            $cabangs = array_values(array_filter($cabangs, function ($c) use ($ekstra_id) {
+                return (int)$c['ekstra_id'] === (int)$ekstra_id;
+            }));
+        }
+
+        $logs = $this->db->query(
+            "SELECT * FROM tx_ekstra_sesi WHERE bulan = ? AND tahun = ?",
+            [$bulan, $tahun]
+        )->result_array();
+
+        $agg = [];
+        foreach ($logs as $row) {
+            $eid = (int)$row['ekstra_id'];
+            if (!isset($agg[$eid])) {
+                $agg[$eid] = ['disetujui_sesi' => 0, 'disetujui_honor' => 0.00, 'pending_sesi' => 0, 'pending_honor' => 0.00, 'baris' => 0];
+            }
+            $agg[$eid]['baris']++;
+            $jml = (int)$row['jumlah_sesi'];
+            $nom = (float)$row['total_honor'];
+            if ($row['status'] === 'disetujui') {
+                $agg[$eid]['disetujui_sesi'] += $jml;
+                $agg[$eid]['disetujui_honor'] += $nom;
+            } else {
+                $agg[$eid]['pending_sesi'] += $jml;
+                $agg[$eid]['pending_honor'] += $nom;
+            }
+        }
+
+        $result = [];
+        foreach ($cabangs as $cab) {
+            $eid = (int)$cab['ekstra_id'];
+            $st = isset($agg[$eid]) ? $agg[$eid] : ['disetujui_sesi' => 0, 'disetujui_honor' => 0.00, 'pending_sesi' => 0, 'pending_honor' => 0.00, 'baris' => 0];
+            $result[] = [
+                'ekstra_id'       => $eid,
+                'nama_ekstra'     => $cab['nama_ekstra'],
+                'tipe_honor'      => $cab['tipe_honor'],
+                'tarif_standar'   => (float)$cab['tarif_standar'],
+                'nama_pegawai'    => $cab['nama_pegawai'],
+                'disetujui_sesi'  => $st['disetujui_sesi'],
+                'disetujui_honor' => $st['disetujui_honor'],
+                'pending_sesi'    => $st['pending_sesi'],
+                'pending_honor'   => $st['pending_honor'],
+                'jumlah_baris'    => $st['baris']
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Ambil satu baris sesi/kedatangan berdasarkan sesi_id
+     */
+    public function get_sesi_ekstra_by_id($sesi_id) {
+        $this->ensure_ekstra_schema();
+        return $this->db->get_where('tx_ekstra_sesi', ['sesi_id' => (int)$sesi_id])->row_array();
+    }
+
+    /**
+     * Simpan baris sesi/kedatangan guru (Tambah / Edit)
+     */
+    public function save_sesi_ekstra($data, $sesi_id = null) {
+        $this->ensure_ekstra_schema();
+        if ($sesi_id) {
+            $this->db->where('sesi_id', (int)$sesi_id);
+            return $this->db->update('tx_ekstra_sesi', $data);
+        } else {
+            return $this->db->insert('tx_ekstra_sesi', $data);
+        }
+    }
+
+    /**
+     * Hapus baris sesi/kedatangan guru
+     */
+    public function delete_sesi_ekstra($sesi_id) {
+        $this->ensure_ekstra_schema();
+        return $this->db->where('sesi_id', (int)$sesi_id)->delete('tx_ekstra_sesi');
+    }
+
+    /**
+     * Wrapper kompatibilitas: daftar siswa ekstra
+     */
+    public function get_siswa_ekstra($ekstra_id = null, $bulan = null, $tahun = null, $status_bayar = null) {
+        return $this->get_piutang_siswa_ekstra($ekstra_id, $bulan, $tahun, $status_bayar);
+    }
+
+    /**
+     * Toggle status pembayaran siswa (lunas <-> pending) dengan dukungan bulan_cair/tahun_cair
+     * @param int $id
+     * @param int|null $bulan_cair
+     * @param int|null $tahun_cair
+     * @return array
+     */
+    public function toggle_status_bayar_siswa($id, $bulan_cair = null, $tahun_cair = null) {
+        $row = $this->db->get_where('tx_ekstra_siswa', ['id' => (int)$id])->row_array();
         if (!$row) {
             return ['status' => false, 'message' => 'Data siswa tidak ditemukan.'];
         }
 
         if ($row['status_bayar'] === 'lunas') {
-            $new_status = 'pending';
-            $tgl_bayar = null;
+            return $this->batalkan_lunas_piutang($id);
         } else {
-            $new_status = 'lunas';
-            $tgl_bayar = date('Y-m-d');
+            $bc = $bulan_cair ? (int)$bulan_cair : (int)$row['bulan'];
+            $tc = $tahun_cair ? (int)$tahun_cair : (int)$row['tahun'];
+            return $this->lunasi_piutang_siswa($id, $bc, $tc, date('Y-m-d'));
         }
-
-        $this->db->where('id', $id)->update('tx_ekstra_siswa', [
-            'status_bayar'  => $new_status,
-            'tanggal_bayar' => $tgl_bayar
-        ]);
-
-        return [
-            'status'        => true,
-            'new_status'    => $new_status,
-            'tanggal_bayar' => $tgl_bayar,
-            'message'       => 'Status pembayaran ' . $row['nama_siswa'] . ' berhasil diubah menjadi ' . strtoupper($new_status)
-        ];
     }
 
     /**
-     * Simpan data siswa ekstra (Tambah / Edit)
+     * Simpan data tunggakan siswa ekstra (Tambah / Edit)
      * @param array $data
      * @param int|null $id
      * @return bool
      */
     public function save_siswa_ekstra($data, $id = null) {
+        $this->ensure_ekstra_schema();
         if ($id) {
-            $this->db->where('id', $id);
+            $this->db->where('id', (int)$id);
             return $this->db->update('tx_ekstra_siswa', $data);
         } else {
             return $this->db->insert('tx_ekstra_siswa', $data);
@@ -968,7 +1470,7 @@ class Payroll_model extends CI_Model {
      * @return bool
      */
     public function delete_siswa_ekstra($id) {
-        return $this->db->where('id', $id)->delete('tx_ekstra_siswa');
+        return $this->db->where('id', (int)$id)->delete('tx_ekstra_siswa');
     }
 
     /**
@@ -979,7 +1481,7 @@ class Payroll_model extends CI_Model {
      */
     public function save_ekstra($data, $ekstra_id = null) {
         if ($ekstra_id) {
-            $this->db->where('ekstra_id', $ekstra_id);
+            $this->db->where('ekstra_id', (int)$ekstra_id);
             return $this->db->update('m_ekstra', $data);
         } else {
             return $this->db->insert('m_ekstra', $data);
@@ -992,18 +1494,21 @@ class Payroll_model extends CI_Model {
      * @return array|bool
      */
     public function get_ekstra_by_id($ekstra_id) {
-        return $this->db->get_where('m_ekstra', ['ekstra_id' => $ekstra_id])->row_array();
+        return $this->db->get_where('m_ekstra', ['ekstra_id' => (int)$ekstra_id])->row_array();
     }
 
     /**
-     * Hapus cabang ekstra (soft delete is_active = 'n' atau delete)
+     * Hapus cabang ekstra beserta seluruh riwayat rekap, tunggakan, dan log sesinya
      * @param int $ekstra_id
      * @return bool
      */
     public function delete_ekstra($ekstra_id) {
-        // Hapus juga peserta siswa yang terhubung agar integritas database terjaga
-        $this->db->where('ekstra_id', $ekstra_id)->delete('tx_ekstra_siswa');
-        return $this->db->where('ekstra_id', $ekstra_id)->delete('m_ekstra');
+        $this->ensure_ekstra_schema();
+        $eid = (int)$ekstra_id;
+        $this->db->where('ekstra_id', $eid)->delete('tx_ekstra_siswa');
+        $this->db->where('ekstra_id', $eid)->delete('tx_ekstra_rekap');
+        $this->db->where('ekstra_id', $eid)->delete('tx_ekstra_sesi');
+        return $this->db->where('ekstra_id', $eid)->delete('m_ekstra');
     }
 
     /**
@@ -1012,7 +1517,7 @@ class Payroll_model extends CI_Model {
      * @return array|bool
      */
     public function get_siswa_ekstra_by_id($id) {
-        return $this->db->get_where('tx_ekstra_siswa', ['id' => $id])->row_array();
+        return $this->db->get_where('tx_ekstra_siswa', ['id' => (int)$id])->row_array();
     }
 
     // =========================================================================
@@ -1344,36 +1849,49 @@ class Payroll_model extends CI_Model {
     }
 
     /**
+     * Helper rekursif konversi angka ke kata bahasa Indonesia (tanpa imbuhan "Rupiah" di tiap level)
+     * @param float $nilai
+     * @return string
+     */
+    private function _terbilang_kata($nilai) {
+        $nilai = floor(abs((float)$nilai));
+        $huruf = ['', 'Satu', 'Dua', 'Tiga', 'Empat', 'Lima', 'Enam', 'Tujuh', 'Delapan', 'Sembilan', 'Sepuluh', 'Sebelas'];
+
+        if ($nilai < 12) {
+            return ' ' . $huruf[(int)$nilai];
+        } else if ($nilai < 20) {
+            return $this->_terbilang_kata($nilai - 10) . ' Belas';
+        } else if ($nilai < 100) {
+            return $this->_terbilang_kata((int)($nilai / 10)) . ' Puluh' . $this->_terbilang_kata($nilai % 10);
+        } else if ($nilai < 200) {
+            return ' Seratus' . $this->_terbilang_kata($nilai - 100);
+        } else if ($nilai < 1000) {
+            return $this->_terbilang_kata((int)($nilai / 100)) . ' Ratus' . $this->_terbilang_kata($nilai % 100);
+        } else if ($nilai < 2000) {
+            return ' Seribu' . $this->_terbilang_kata($nilai - 1000);
+        } else if ($nilai < 1000000) {
+            return $this->_terbilang_kata((int)($nilai / 1000)) . ' Ribu' . $this->_terbilang_kata($nilai % 1000);
+        } else if ($nilai < 1000000000) {
+            return $this->_terbilang_kata((int)($nilai / 1000000)) . ' Juta' . $this->_terbilang_kata($nilai % 1000000);
+        } else if ($nilai < 1000000000000) {
+            return $this->_terbilang_kata((int)($nilai / 1000000000)) . ' Miliar' . $this->_terbilang_kata(fmod($nilai, 1000000000));
+        }
+        return '';
+    }
+
+    /**
      * Konversi angka nominal rupiah menjadi kalimat terbilang bahasa Indonesia
      * @param int|float $nilai
      * @return string
      */
     public function terbilang($nilai) {
-        $nilai = abs((float)$nilai);
-        $huruf = ['', 'Satu', 'Dua', 'Tiga', 'Empat', 'Lima', 'Enam', 'Tujuh', 'Delapan', 'Sembilan', 'Sepuluh', 'Sebelas'];
-        $temp = '';
-
-        if ($nilai < 12) {
-            $temp = ' ' . $huruf[(int)$nilai];
-        } else if ($nilai < 20) {
-            $temp = $this->terbilang($nilai - 10) . ' Belas';
-        } else if ($nilai < 100) {
-            $temp = $this->terbilang((int)($nilai / 10)) . ' Puluh' . $this->terbilang($nilai % 10);
-        } else if ($nilai < 200) {
-            $temp = ' Seratus' . $this->terbilang($nilai - 100);
-        } else if ($nilai < 1000) {
-            $temp = $this->terbilang((int)($nilai / 100)) . ' Ratus' . $this->terbilang($nilai % 100);
-        } else if ($nilai < 2000) {
-            $temp = ' Seribu' . $this->terbilang($nilai - 1000);
-        } else if ($nilai < 1000000) {
-            $temp = $this->terbilang((int)($nilai / 1000)) . ' Ribu' . $this->terbilang($nilai % 1000);
-        } else if ($nilai < 1000000000) {
-            $temp = $this->terbilang((int)($nilai / 1000000)) . ' Juta' . $this->terbilang($nilai % 1000000);
-        } else if ($nilai < 1000000000000) {
-            $temp = $this->terbilang((int)($nilai / 1000000000)) . ' Miliar' . $this->terbilang(fmod($nilai, 1000000000));
+        $angka = round((float)$nilai);
+        if ($angka == 0) {
+            return 'Nol Rupiah';
         }
-
-        return trim($temp) . ' Rupiah';
+        $prefix = $angka < 0 ? 'Minus ' : '';
+        $kata = trim(preg_replace('/\s+/', ' ', $this->_terbilang_kata(abs($angka))));
+        return $prefix . ($kata !== '' ? $kata : 'Nol') . ' Rupiah';
     }
 
     /**

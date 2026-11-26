@@ -156,6 +156,8 @@ class Migrate_payroll extends CI_Controller {
                 `tahun` YEAR NOT NULL,
                 `status_bayar` ENUM('lunas','pending') NOT NULL DEFAULT 'pending',
                 `tanggal_bayar` DATE DEFAULT NULL,
+                `bulan_cair` TINYINT(2) NULL DEFAULT NULL,
+                `tahun_cair` INT(4) NULL DEFAULT NULL,
                 `nominal_tagihan` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
                 `keterangan` VARCHAR(255) DEFAULT NULL,
                 `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -930,6 +932,93 @@ class Migrate_payroll extends CI_Controller {
             'status' => 'success'
         ];
 
+        // =============================================================
+        // STEP 14: Tabel tx_ekstra_rekap (Blok A Input Cepat Anak Lunas)
+        // =============================================================
+        $check_t14 = $this->db->query("SHOW TABLES LIKE 'tx_ekstra_rekap'")->num_rows();
+        if ($check_t14 == 0) {
+            $sql_t14 = "CREATE TABLE `tx_ekstra_rekap` (
+                `rekap_id` INT(11) NOT NULL AUTO_INCREMENT,
+                `ekstra_id` INT(11) NOT NULL,
+                `bulan` TINYINT(2) NOT NULL,
+                `tahun` INT(4) NOT NULL,
+                `jumlah_lunas` INT(11) NOT NULL DEFAULT 0,
+                `tarif_satuan` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                `keterangan` VARCHAR(255) DEFAULT NULL,
+                `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (`rekap_id`),
+                UNIQUE KEY `idx_rekap_unik` (`ekstra_id`, `bulan`, `tahun`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;";
+
+            if ($this->db->query($sql_t14)) {
+                $logs[] = ['step' => 'Tabel Rekap Ekstra Per Anak', 'detail' => 'Tabel `tx_ekstra_rekap` berhasil dibuat untuk Blok A input cepat jumlah anak lunas.', 'status' => 'success'];
+            } else {
+                $is_all_success = false;
+                $logs[] = ['step' => 'Tabel Rekap Ekstra Per Anak', 'detail' => 'Gagal: ' . $this->db->error()['message'], 'status' => 'danger'];
+            }
+        } else {
+            $logs[] = ['step' => 'Tabel Rekap Ekstra Per Anak', 'detail' => 'Tabel `tx_ekstra_rekap` sudah tersedia.', 'status' => 'info'];
+        }
+
+        // =============================================================
+        // STEP 15: Tabel tx_ekstra_sesi (Tab 2 Log Multi-Baris Sesi & Kedatangan)
+        // =============================================================
+        $check_t15 = $this->db->query("SHOW TABLES LIKE 'tx_ekstra_sesi'")->num_rows();
+        if ($check_t15 == 0) {
+            $sql_t15 = "CREATE TABLE `tx_ekstra_sesi` (
+                `sesi_id` INT(11) NOT NULL AUTO_INCREMENT,
+                `ekstra_id` INT(11) NOT NULL,
+                `bulan` TINYINT(2) NOT NULL,
+                `tahun` INT(4) NOT NULL,
+                `tanggal_sesi` DATE DEFAULT NULL,
+                `jumlah_sesi` INT(11) NOT NULL DEFAULT 1,
+                `tarif_per_sesi` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                `total_honor` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                `keterangan` VARCHAR(255) DEFAULT NULL,
+                `status` ENUM('disetujui','pending') NOT NULL DEFAULT 'disetujui',
+                `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+                `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (`sesi_id`),
+                KEY `idx_sesi_periode` (`ekstra_id`, `bulan`, `tahun`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;";
+
+            if ($this->db->query($sql_t15)) {
+                $logs[] = ['step' => 'Tabel Log Sesi & Kedatangan', 'detail' => 'Tabel `tx_ekstra_sesi` berhasil dibuat untuk pencatatan honor per_sesi & per_kedatangan.', 'status' => 'success'];
+            } else {
+                $is_all_success = false;
+                $logs[] = ['step' => 'Tabel Log Sesi & Kedatangan', 'detail' => 'Gagal: ' . $this->db->error()['message'], 'status' => 'danger'];
+            }
+        } else {
+            $logs[] = ['step' => 'Tabel Log Sesi & Kedatangan', 'detail' => 'Tabel `tx_ekstra_sesi` sudah tersedia.', 'status' => 'info'];
+        }
+
+        // =============================================================
+        // STEP 16: Upgrade Kolom Carry-Over & Bersihkan Data Uji Coba Non-Per-Anak
+        // =============================================================
+        $col_cair = $this->db->query("SHOW COLUMNS FROM `tx_ekstra_siswa` LIKE 'bulan_cair'")->num_rows();
+        if ($col_cair == 0) {
+            $alter_ok = $this->db->query("ALTER TABLE `tx_ekstra_siswa`
+                ADD COLUMN `bulan_cair` TINYINT(2) NULL DEFAULT NULL AFTER `tanggal_bayar`,
+                ADD COLUMN `tahun_cair` INT(4) NULL DEFAULT NULL AFTER `bulan_cair`");
+            if ($alter_ok) {
+                $logs[] = ['step' => 'Upgrade Kolom Carry-Over', 'detail' => 'Kolom `bulan_cair` & `tahun_cair` ditambahkan ke `tx_ekstra_siswa`.', 'status' => 'success'];
+            } else {
+                $is_all_success = false;
+                $logs[] = ['step' => 'Upgrade Kolom Carry-Over', 'detail' => 'Gagal alter `tx_ekstra_siswa`: ' . $this->db->error()['message'], 'status' => 'danger'];
+            }
+        } else {
+            $logs[] = ['step' => 'Upgrade Kolom Carry-Over', 'detail' => 'Kolom `bulan_cair` & `tahun_cair` pada `tx_ekstra_siswa` sudah tersedia.', 'status' => 'info'];
+        }
+
+        // Bersihkan baris siswa uji coba yang tertaut pada cabang tipe per_sesi / per_kedatangan (mis. Zafiq & Zaira di Renang Pak Tri)
+        $this->db->query("DELETE s FROM `tx_ekstra_siswa` s INNER JOIN `m_ekstra` e ON s.ekstra_id = e.ekstra_id WHERE e.tipe_honor != 'per_anak'");
+        $cleaned_rows = $this->db->affected_rows();
+        if ($cleaned_rows > 0) {
+            $logs[] = ['step' => 'Pembersihan Data Uji Ekstra', 'detail' => $cleaned_rows . ' baris data siswa uji coba pada cabang per_sesi/per_kedatangan berhasil dibersihkan.', 'status' => 'success'];
+        } else {
+            $logs[] = ['step' => 'Pembersihan Data Uji Ekstra', 'detail' => 'Tidak ada baris siswa salah-tipe di `tx_ekstra_siswa`.', 'status' => 'info'];
+        }
+
         // Tampilkan Laporan HTML Migrasi
         $this->_render_ui($logs, $is_all_success, $host_name, $db_name, $is_local);
     }
@@ -1000,7 +1089,7 @@ class Migrate_payroll extends CI_Controller {
 
                     <?php if ($is_all_success): ?>
                         <div class="banner banner-success">
-                            <strong>Status Migrasi: BERHASIL SEMPURNA!</strong> &nbsp; Seluruh 8 tabel penggajian, menu portal, dan seeder 21 guru siap digunakan untuk Tahap 2.
+                            <strong>Status Migrasi: BERHASIL SEMPURNA!</strong> &nbsp; Seluruh tabel penggajian (termasuk Rekap Cepat &amp; Log Sesi Ekstra), menu portal, dan seeder 21 guru siap digunakan.
                         </div>
                     <?php else: ?>
                         <div class="banner banner-danger">

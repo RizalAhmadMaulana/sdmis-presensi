@@ -1520,6 +1520,70 @@ Membangun antarmuka siklus penggajian bulanan dengan fitur **Tombol Sakti ⚡ "H
 7. `sdmis/application/views/module/gaji/rekonsiliasi/index.php`
 8. `sdmis/application/views/module/gaji/laporan/rekap_print.php`
 
+---
+
+## 🔄 Pembaruan Arsitektur 2-Tab Manajemen Ekstra & Honor Pengampu (Per Anak vs Per Sesi/Kedatangan)
+**Tanggal:** 26 November 2026  
+**Status:** Selesai Diimplementasikan & Diverifikasi Kode  
+
+### A. Latar Belakang & Kesepakatan Flow Baru:
+Pada skema sebelumnya, seluruh cabang ekstra dicampur dalam 1 checklist nama siswa satu per satu (termasuk ekstra `Renang Pak Tri` bertipe `per_sesi` yang keliru dihitung per siswa bayar). Atas evaluasi bersama user, modul **Manajemen Ekstra & Honor Pengampu (`gaji/ekstra`)** direstrukturisasi menjadi **Arsitektur 2-Tab** tanpa menghapus integritas Master Cabang Ekstra maupun benchmark November 2026:
+
+1. **Tab 1 — Ekstra Per Anak & Tunggakan Siswa (Pola 2)**:
+   - Hanya menangani cabang bertipe `per_anak` (`Panahan`, `Sepatu Roda`, `Ekstra B. Inggris (Atii)`, `Ekstra B. Inggris (Rico)`, `Ekstra MTK (Nuki)`).
+   - **Blok A (Input Cepat Jumlah Anak Lunas)**: Admin cukup mengetik angka jumlah siswa yang lunas per cabang dalam sebulan pada tabel `tx_ekstra_rekap` (tidak perlu input nama anak lunas satu per satu), dilengkapi kalkulasi *live total* dan akumulasi `+ Carry-Over` otomatis.
+   - **Blok B (Daftar Tunggakan Siswa Belum Lunas & Carry-Over)**: Khusus mencatat nama siswa yang menunggak (`tx_ekstra_siswa`, status default `'pending'`). Tersedia tombol **`Lunasi`** dengan pilihan periode pencairan (`bulan_cair` & `tahun_cair`) agar pelunasan lintas bulan (misal tunggakan November dilunasi saat menyiapkan Mukafaah Desember) otomatis menambah honor guru di bulan pencairan tersebut, serta tombol `Batal Lunas`, `Edit`, dan `Hapus`.
+
+2. **Tab 2 — Rekap Sesi & Kedatangan Guru (`per_sesi` & `per_kedatangan`)**:
+   - Hanya menangani cabang bertipe `per_sesi` & `per_kedatangan` (`Renang (Pak Tri)`, `Renang (Kak Putri)`, `Tahfidz & Tasmi`). **Zero input nama siswa**.
+   - Dilengkapi **Kartu Ringkasan Per Cabang & Pengampu** dan tabel log multi-baris (`tx_ekstra_sesi`) yang mendukung pencatatan banyak baris per cabang dalam satu bulan (baik per tanggal pertemuan `1` sesi per baris maupun dipecah misalnya `17x` kedatangan PAUD + `4x` kedatangan SD).
+   - Modal `+ Catat Sesi / Kedatangan` mendukung mode Tambah & Edit, auto-fill tarif standar cabang, estimasi total honor real-time, keterangan, dan status (`Disetujui` / `Pending`).
+
+### B. Perubahan Skema Database & Auto-Migrasi:
+1. **Tabel Baru `tx_ekstra_rekap`**: Menyimpan rekap cepat `jumlah_lunas`, `tarif_satuan`, dan `keterangan` per `(ekstra_id, bulan, tahun)` untuk Blok A Tab 1.
+2. **Tabel Baru `tx_ekstra_sesi`**: Menyimpan log multi-baris `tanggal_sesi`, `jumlah_sesi`, `tarif_per_sesi`, `total_honor`, `keterangan`, dan `status` (`'disetujui'`/`'pending'`) untuk Tab 2.
+3. **Upgrade Tabel `tx_ekstra_siswa`**: Penambahan kolom `bulan_cair` (`TINYINT(2) NULL`) & `tahun_cair` (`INT(4) NULL`) agar pencairan *Carry-Over* piutang berjalan akurat meski tanggal pelunasan riil atau pengujian dilakukan lintas bulan.
+4. **Pembersihan Data Uji Coba Salah Tipe**: `Migrate_payroll.php` Step 16 membersihkan baris siswa uji coba di `tx_ekstra_siswa` yang tertaut pada cabang bukan `per_anak` (seperti data tes `Zafiq` & `Zaira` pada `Renang (Pak Tri)`).
+5. **Self-Healing Guard (`Payroll_model::ensure_ekstra_schema()`)**: Menjamin tabel & kolom baru otomatis terbuat jika halaman `/gaji/ekstra` diakses sebelum admin sempat membuka `/migrate_payroll`.
+
+### C. Perubahan Kode Program:
+1. **[Payroll_model.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/models/Payroll_model.php)**:
+   - Memperbarui `hitung_honor_ekstra_pegawai($pegawai_id, $bulan, $tahun)`: cabang `per_anak` menghitung `(tx_ekstra_rekap.jumlah_lunas × tarif) + pelunasan Carry-Over Blok B (bulan_cair/tahun_cair)`, sedangkan cabang `per_sesi`/`per_kedatangan` menjumlahkan `tx_ekstra_sesi.total_honor` berstatus `'disetujui'`.
+   - Menambahkan helper `ensure_ekstra_schema()`, `get_ekstra_by_tipe()`, `get_rekap_ekstra_per_anak()`, `save_rekap_ekstra_batch()`, `get_piutang_siswa_ekstra()`, `lunasi_piutang_siswa()`, `batalkan_lunas_piutang()`, `get_sesi_ekstra()`, `get_ringkasan_sesi_per_cabang()`, `get_sesi_ekstra_by_id()`, `save_sesi_ekstra()`, dan `delete_sesi_ekstra()`, serta memperbarui `delete_ekstra()` untuk membersihkan ketiga tabel anak. Seluruh query bebas dari kendala SQL `ONLY_FULL_GROUP_BY`.
+2. **[Ekstra.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/controllers/gaji/Ekstra.php)**:
+   - Menambahkan dukungan parameter `tab` (`per_anak` / `per_sesi`), statistik 4 KPI terintegrasi, serta endpoint `save_rekap_anak()`, `lunasi_tunggakan()`, `batal_lunas()`, `save_sesi()`, dan `delete_sesi()`, sekaligus membatasi `add_siswa()`/`edit_siswa()` khusus cabang `per_anak`.
+3. **[ekstra/index.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/views/module/gaji/ekstra/index.php)**:
+   - Implementasi UI responsif 2-Tab dengan 4 KPI cards, filter bersama yang mempertahankan tab aktif, form Blok A dengan kalkulasi *live total*, tabel Blok B dengan tombol **`Lunasi`** + modal pilih bulan pencairan, kartu ringkasan + tabel multi-baris Tab 2, serta 4 modal terpasang rapi ke `<body>`.
+4. **[Migrate_payroll.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/controllers/Migrate_payroll.php)**:
+   - Menambahkan `bulan_cair` & `tahun_cair` pada Step 5 untuk instalasi baru serta menambahkan **Step 14 (`tx_ekstra_rekap`)**, **Step 15 (`tx_ekstra_sesi`)**, dan **Step 16 (Alter `tx_ekstra_siswa` & Pembersihan Data Uji Non-Per-Anak)**.
+
+---
+
+## 📄 Pembaruan Direct Download PDF Resmi (Slip A5 & Rekapitulasi) serta Export Mutasi Bank Excel (.xlsx) Bergaris Penuh
+**Tanggal:** 26 November 2026  
+**Status:** Selesai Diimplementasikan & Diverifikasi Kode  
+
+### A. Rincian Pembaruan yang Dilakukan:
+1. **Menu Slip Gaji & Rekapitulasi — Konversi Cetak ke Unduhan PDF Langsung ([Laporan.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/controllers/gaji/Laporan.php) & [laporan/index.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/views/module/gaji/laporan/index.php))**:
+   - Mengubah aksi tombol dari preview print HTML menjadi **direct download file PDF** menggunakan library `dompdf/dompdf` (`v0.8.3`) yang sudah terpasang di `vendor/`:
+     - `slip($gaji_id)` mengunduh PDF A5 Portrait (`Slip_Mukafaah_<Nama>_<Bulan>_<Tahun>.pdf`).
+     - `slip_batch($periode_id)` mengunduh 1 file PDF berisi seluruh slip pegawai (otomatis *page-break* per lembar A5 tanpa halaman kosong di akhir).
+     - `rekap($periode_id)` mengunduh PDF A4 Landscape (`Rekapitulasi_Mukafaah_<Periode>.pdf`).
+   - Memperbarui label tombol antarmuka sesuai permintaan: **`Unduh Semua Slip`**, **`Unduh Rekapitulasi`**, kolom **`Aksi`**, dan tombol baris **`Unduh File`** (serta tombol **`Unduh Rekapitulasi`** & **`Unduh Semua Slip`** pada [rekonsiliasi/index.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/views/module/gaji/rekonsiliasi/index.php)).
+   - Menyematkan logo SDMIS sebagai base64 *Data URI* dan tanggal tanda tangan berbahasa Indonesia (`26 November 2026`).
+2. **Desain Dokumen PDF Resmi Hitam-Putih Formal ([slip_a5.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/views/module/gaji/laporan/slip_a5.php) & [rekap_print.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/views/module/gaji/laporan/rekap_print.php))**:
+   - Merancang ulang tata letak menggunakan tabel CSS 2.1 yang kompatibel penuh dengan Dompdf, menggunakan teks **hitam formal (`#000000`)**, penekanan **bold** pada kop surat, header tabel, total, Take Home Pay, serta nama pejabat/penerima, dengan garis bingkai tabel tegas hitam solid dan *double-rule* kop surat (menghilangkan nuansa dekoratif/gradient).
+   - Memperbaiki tampilan potongan nol yang sebelumnya tercetak `-0` menjadi `0`.
+3. **Perbaikan Bug Rekursif `terbilang()` ([Payroll_model.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/models/Payroll_model.php#L1851-L1895))**:
+   - Memisahkan fungsi rekursif `_terbilang_kata()` agar kata `"Rupiah"` hanya ditambahkan sekali di akhir oleh `terbilang()`, memperbaiki bug sebelumnya yang mengulang kata `"Rupiah"` di setiap pecahan angka (contoh: `"Lima Ratus Lima Puluh Ribu Rupiah"` untuk `Rp 550.000`).
+4. **Generator Export Mutasi Bank Excel `.xlsx` Rapi Seperti Payroll November ([Simple_xlsx.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/libraries/Simple_xlsx.php), [Export_bank.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/controllers/gaji/Export_bank.php), & [export_bank/index.php](file:///c:/xampp/htdocs/mis_dev/sdmis/application/views/module/gaji/export_bank/index.php))**:
+   - Membangun library OpenXML `Simple_xlsx` (tanpa dependensi Composer tambahan, memakai `ZipArchive` dengan fallback pure-PHP ZIP memory builder).
+   - File unduhan default pada **`bri()`**, **`bsi()`**, dan **`master_csv()`** kini berbentuk **Excel `.xlsx` asli** dengan:
+     - Garis tabel (*thin border*) penuh di seluruh sel header, data, hingga baris trailer (`COUNT`, `TOTAL`, `CHECK`, `VALUEDATE (DDMMYYYY)`, `DEBITACCOUNT` ter-merge `A:C` dengan nilai di kolom `D`).
+     - Header tebal dengan arsiran lembut biru-abu (`#D9E1F2`) & baris kontrol dengan arsiran `#F2F2F2`, baris header di-*freeze*, dan lebar kolom terhitung otomatis agar nama & email tidak terpotong.
+     - Format sel **Teks (`@`)** pada kolom **`ACCOUNT`**, **`DEBITACCOUNT`**, **`VALUEDATE`**, **`CHECK`**, **`NIP`**, dan **`CUSTOMERREFF`** sehingga nomor rekening panjang (misal `690201016686533`) **tidak lagi berubah menjadi notasi ilmiah `6.90201E+14`** dan angka `0` di depan (misal `003501092708504`) tetap terjaga utuh.
+     - Tetap menyediakan tautan sekunder **`Unduh CSV Mentah (.csv)`** (`?format=csv`) apabila admin perlu unggah CSV langsung ke portal internet banking bank.
+
 
 
 
